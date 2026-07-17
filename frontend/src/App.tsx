@@ -1,122 +1,176 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState } from "react";
+import { triggerOrchestration } from "./api/orchestration.api";
+import { OrchestrationResponse } from "./types/orchestration.types";
+import { PromptComposer } from "./components/PromptComposer";
+import { AgentTraceTimeline } from "./components/AgentTraceTimeline";
+import { FinalAnswerPanel } from "./components/FinalAnswerPanel";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [runData, setRunData] = useState<OrchestrationResponse | null>(null);
+
+  const handlePromptSubmit = async (prompt: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await triggerOrchestration(prompt);
+      setRunData(response);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred during orchestration.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+    <div style={{ maxWidth: "1280px", margin: "0 auto", width: "100%", padding: "40px 20px" }}>
+      {/* Header Panel */}
+      <header style={{ textAlign: "center", marginBottom: "40px" }}>
+        <h1
+          style={{
+            fontSize: "2.8rem",
+            background: "linear-gradient(to right, #F59E0B, #3B82F6)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            marginBottom: "8px",
+          }}
         >
-          Count is {count}
-        </button>
-      </section>
+          SHB Digital Expert Agents
+        </h1>
+        <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>
+          Vietnam Innovation Challenge 2026 • Multi-Agent Operations System
+        </p>
+      </header>
 
-      <div className="ticks"></div>
+      {/* Grid Layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 450px) 1fr", gap: "32px" }}>
+        {/* Left Column: Compose & System Overview */}
+        <div>
+          <PromptComposer onSubmit={handlePromptSubmit} isLoading={loading} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          {/* System status details */}
+          <div className="glass" style={{ padding: "20px" }}>
+            <h4 style={{ color: "var(--text-primary)", marginBottom: "12px" }}>System Specialist Registry</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "0.85rem" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <span>🎯</span>
+                <div>
+                  <strong style={{ color: "var(--accent-blue)" }}>Planner Agent</strong>
+                  <p style={{ color: "var(--text-secondary)" }}>Decomposes operations task and delegates to specialists.</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <span>💳</span>
+                <div>
+                  <strong style={{ color: "var(--accent-gold)" }}>Credit Specialist</strong>
+                  <p style={{ color: "var(--text-secondary)" }}>Calculates credit score models and policy validation.</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <span>⚖️</span>
+                <div>
+                  <strong style={{ color: "var(--accent-green)" }}>Legal & Compliance</strong>
+                  <p style={{ color: "var(--text-secondary)" }}>Verifies transactions align with regulatory standards.</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <span>⚙️</span>
+                <div>
+                  <strong style={{ color: "var(--accent-red)" }}>Operations Specialist</strong>
+                  <p style={{ color: "var(--text-secondary)" }}>Fulfills the request and publishes transaction tickets.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {/* Right Column: Visual Tracing & Output */}
+        <div>
+          {error && (
+            <div
+              className="glass"
+              style={{
+                padding: "16px",
+                borderColor: "var(--accent-red)",
+                backgroundColor: "rgba(239, 68, 68, 0.05)",
+                color: "var(--accent-red)",
+                marginBottom: "24px",
+              }}
+            >
+              ⚠️ {error}
+            </div>
+          )}
+
+          {loading && (
+            <div
+              className="glass"
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: "var(--text-secondary)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "16px",
+              }}
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  border: "4px solid rgba(245, 158, 11, 0.1)",
+                  borderTopColor: "var(--accent-gold)",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              <style>
+                {`
+                  @keyframes spin {
+                    to { transform: rotate(360deg); }
+                  }
+                `}
+              </style>
+              <span>Orchestrating agent workflows and processing tool calls...</span>
+            </div>
+          )}
+
+          {!loading && !runData && !error && (
+            <div
+              className="glass"
+              style={{
+                padding: "60px 40px",
+                textAlign: "center",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <h3>No Active Execution</h3>
+              <p style={{ fontSize: "0.95rem", color: "var(--text-muted)", marginTop: "8px" }}>
+                Submit a prompt from the composer on the left to see the agent orchestration traces in real-time.
+              </p>
+            </div>
+          )}
+
+          {runData && !loading && (
+            <div>
+              <h2 style={{ marginBottom: "20px" }}>Agent Execution Traces</h2>
+              <AgentTraceTimeline traces={runData.traces} />
+              <FinalAnswerPanel
+                answer={runData.finalAnswer}
+                ticketId={runData.approvalTicketId}
+                runId={runData.runId}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
