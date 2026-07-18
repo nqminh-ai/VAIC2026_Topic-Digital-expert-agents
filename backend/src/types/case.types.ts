@@ -48,10 +48,12 @@ export interface RetailCase {
   currentDebts: Debt[];
   requestedLoan: RequestedLoan;
   property: PropertyInfo;
+  properties?: PropertyInfo[];
   refinanceAutoLoan?: {
     remainingPrincipal: number;
     monthlyPayment: number;
   };
   consent: ConsentRegistry;
   insurancePreference: "accepted" | "declined";
+  additionalContext?: string;
 }

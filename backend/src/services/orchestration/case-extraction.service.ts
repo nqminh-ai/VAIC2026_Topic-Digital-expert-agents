@@ -209,16 +209,52 @@ const validateExtractedCase = (value: unknown): Omit<RetailCase, "caseId" | "cus
     throw new Error("Extracted case has invalid requestedLoan.");
   }
 
-  const property = raw.property as Record<string, unknown> | undefined;
-  if (
-    !property ||
-    !PROPERTY_TYPES.has(String(property.type)) ||
-    typeof property.value !== "number" ||
-    !PROPERTY_STATUSES.has(String(property.status)) ||
-    !isNonEmptyString(property.evidence)
-  ) {
-    throw new Error("Extracted case has invalid property data.");
+  let properties: Omit<RetailCase, "caseId" | "customerId">["properties"] = undefined;
+  let primaryProperty: Omit<RetailCase, "caseId" | "customerId">["property"] | undefined = undefined;
+
+  if (Array.isArray(raw.properties) && raw.properties.length > 0) {
+    properties = raw.properties.map((entry, index) => {
+      const p = entry as Record<string, unknown>;
+      if (
+        !p ||
+        !PROPERTY_TYPES.has(String(p.type)) ||
+        typeof p.value !== "number" ||
+        !PROPERTY_STATUSES.has(String(p.status)) ||
+        !isNonEmptyString(p.evidence)
+      ) {
+        throw new Error(`Property entry ${index} is invalid.`);
+      }
+      return {
+        type: p.type as "apartment" | "land" | "house",
+        value: p.value as number,
+        status: p.status as "completed" | "future_project",
+        projectCode: typeof p.projectCode === "string" ? p.projectCode : undefined,
+        evidence: p.evidence as string
+      };
+    });
+    primaryProperty = properties[0];
+  } else {
+    const p = raw.property as Record<string, unknown> | undefined;
+    if (
+      !p ||
+      !PROPERTY_TYPES.has(String(p.type)) ||
+      typeof p.value !== "number" ||
+      !PROPERTY_STATUSES.has(String(p.status)) ||
+      !isNonEmptyString(p.evidence)
+    ) {
+      throw new Error("Extracted case has invalid property data.");
+    }
+    primaryProperty = {
+      type: p.type as "apartment" | "land" | "house",
+      value: p.value as number,
+      status: p.status as "completed" | "future_project",
+      projectCode: typeof p.projectCode === "string" ? p.projectCode : undefined,
+      evidence: p.evidence as string
+    };
+    properties = [primaryProperty];
   }
+
+  const additionalContext = typeof raw.additionalContext === "string" ? raw.additionalContext.trim() : undefined;
 
   const consent = raw.consent as Record<string, unknown> | undefined;
   if (
@@ -262,13 +298,9 @@ const validateExtractedCase = (value: unknown): Omit<RetailCase, "caseId" | "cus
       amount: requestedLoan.amount as number,
       tenureYears: requestedLoan.tenureYears as number,
     },
-    property: {
-      type: property.type as "apartment" | "land" | "house",
-      value: property.value as number,
-      status: property.status as "completed" | "future_project",
-      projectCode: isNonEmptyString(property.projectCode) ? (property.projectCode as string) : undefined,
-      evidence: property.evidence as string,
-    },
+    property: primaryProperty,
+    properties,
+    additionalContext,
     ...(refinanceAutoLoan ? { refinanceAutoLoan: {
       remainingPrincipal: refinanceAutoLoan.remainingPrincipal as number,
       monthlyPayment: refinanceAutoLoan.monthlyPayment as number,
@@ -307,9 +339,18 @@ export const extractCaseFromPrompt = async (prompt: string): Promise<CaseExtract
     // Structured requests from the production appraisal form are deterministic: validate
     // them directly instead of asking an LLM to re-extract amounts and enum values.
     if (prompt.trim().startsWith("{")) {
-      const structured = JSON.parse(prompt) as Record<string, unknown>;
-      if (structured.demographic && structured.requestedLoan) {
-        return { ok: true, retailCase: validateExtractedCase(structured) };
+      try {
+        const structured = JSON.parse(prompt) as Record<string, unknown>;
+        if (structured.demographic && structured.requestedLoan) {
+          return { ok: true, retailCase: validateExtractedCase(structured) };
+        }
+      } catch (err: any) {
+        console.error("Structured case parsing/validation failed:", err);
+        return {
+          ok: false,
+          missingFields: ["dữ liệu hợp lệ"],
+          questions: [`Thông tin hồ sơ không hợp lệ: ${err?.message || String(err)}`],
+        };
       }
     }
 

@@ -5,7 +5,7 @@ import type { UserRole } from "../types/api";
 import styles from "./TopNav.module.css";
 
 const NAV_ITEMS: Array<{ to: string; label: string; icon: typeof Sparkles; roles: UserRole[] }> = [
-  { to: "/workspace", label: "Thẩm định", icon: Sparkles, roles: ["CREDIT_OFFICER", "CREDIT_APPROVER"] },
+  { to: "/", label: "Thẩm định", icon: Sparkles, roles: ["CREDIT_OFFICER", "CREDIT_APPROVER"] },
   { to: "/dossiers", label: "Hồ sơ chờ duyệt", icon: ClipboardList, roles: ["CUSTOMER", "CREDIT_OFFICER", "CREDIT_APPROVER", "ADMIN", "AUDITOR"] },
   { to: "/agents", label: "Agent flow", icon: BrainCircuit, roles: ["CREDIT_OFFICER", "CREDIT_APPROVER"] },
   { to: "/policy", label: "Chính sách", icon: SlidersHorizontal, roles: ["CREDIT_APPROVER"] },
@@ -13,7 +13,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; icon: typeof Sparkles; roles
 ];
 
 export const TopNav = () => {
-  const { role, clearSession } = useSessionStore();
+  const { role } = useSessionStore();
   const visibleItems = role ? NAV_ITEMS.filter(item => item.roles.includes(role)) : NAV_ITEMS;
   return (
   <header className={styles.header}>
@@ -39,11 +39,19 @@ export const TopNav = () => {
         ))}
       </nav>
 
-      <Link to="/login" onClick={clearSession} className={styles.homeLink}>
-        <LogOut size={15} />
-        <span>Đăng xuất</span>
-        <ArrowUpRight size={14} />
-      </Link>
+      <div className={styles.homeLink}>
+        <span style={{
+          padding: "3px 8px",
+          backgroundColor: "#123c32",
+          color: "#ffffff",
+          borderRadius: "6px",
+          fontSize: "9px",
+          letterSpacing: "0.05em",
+          fontWeight: 700
+        }}>
+          CREDIT APPROVER
+        </span>
+      </div>
     </div>
   </header>
   );

@@ -39,6 +39,13 @@ const retailCaseSchema = z.object({
     projectCode: nonEmptyText.max(100).optional(),
     evidence: nonEmptyText,
   }).strict(),
+  properties: z.array(z.object({
+    type: z.enum(["apartment", "land", "house"]),
+    value: money.positive(),
+    status: z.enum(["completed", "future_project"]),
+    projectCode: nonEmptyText.max(100).optional(),
+    evidence: nonEmptyText,
+  }).strict()).optional(),
   refinanceAutoLoan: z.object({
     remainingPrincipal: money,
     monthlyPayment: money,
@@ -50,6 +57,7 @@ const retailCaseSchema = z.object({
     marketing: z.boolean(),
   }).strict(),
   insurancePreference: z.enum(["accepted", "declined"]),
+  additionalContext: z.string().trim().optional(),
 }).strict();
 
 const formatIssues = (issues: z.core.$ZodIssue[]): string =>
