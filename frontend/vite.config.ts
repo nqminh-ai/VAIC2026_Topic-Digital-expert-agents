@@ -5,4 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   envDir: '../',
+  server: {
+    allowedHosts: ["frontend-production-cb3f5.up.railway.app"],
+  }
 })
