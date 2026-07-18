@@ -3,13 +3,5 @@
   "version": "2026.07.18",
   "injectionCaseId": "case-prompt-injection",
   "injectionSignals": ["ignore all previous instructions", "system instruction", "override check", "prompt injection", "tan cong", "hacker"],
-  "creditIntentSignals": ["tham dinh", "ho so", "tin dung", "khoan vay", "vay", "the chap", "phe duyet"],
-  "cases": [
-    { "caseId": "case-fast-clean", "signals": [{"text":"chi binh","weight":4},{"text":"500 trieu","weight":3},{"text":"ho so sach","weight":3},{"text":"fast lane","weight":3},{"text":"no xau cu","weight":2}] },
-    { "caseId": "case-complex-main", "signals": [{"text":"anh hung","weight":4},{"text":"nguyen van hung","weight":4},{"text":"2.8 ty","weight":3},{"text":"2 8 ty","weight":3},{"text":"ocean park","weight":3},{"text":"vinhomes","weight":2},{"text":"tai cap","weight":2}] },
-    { "caseId": "case-missing-spouse-sig", "signals": [{"text":"anh hai","weight":3},{"text":"thieu chu ky vo","weight":5},{"text":"chua co du chu ky","weight":4},{"text":"tai san chung vo chong","weight":4},{"text":"no nhom 2","weight":2},{"text":"so do cua ban","weight":2}] },
-    { "caseId": "case-missing-guarantee", "signals": [{"text":"anh tuan","weight":3},{"text":"galaxy","weight":4},{"text":"chua co bao lanh","weight":5},{"text":"thieu bao lanh","weight":5},{"text":"chua du dieu kien mo ban","weight":4},{"text":"tien ao","weight":3},{"text":"dao no","weight":3}] },
-    { "caseId": "case-missing-consent", "signals": [{"text":"anh nam","weight":3},{"text":"thieu consent","weight":5},{"text":"chua dong y","weight":4},{"text":"khong dong y","weight":4},{"text":"tra cuu cic","weight":2},{"text":"tra cuu thue","weight":2}] },
-    { "caseId": "case-dti-fail", "signals": [{"text":"anh cuong","weight":3},{"text":"pham van cuong","weight":4},{"text":"dti","weight":3},{"text":"thu nhap khong du","weight":4},{"text":"72 tuoi","weight":4},{"text":"ltv 85","weight":4},{"text":"tiem tap hoa","weight":3},{"text":"quy hoach lo gioi","weight":4},{"text":"luong tien mat","weight":3}] }
-  ]
+  "creditIntentSignals": ["tham dinh", "ho so", "tin dung", "khoan vay", "vay", "the chap", "phe duyet"]
 }

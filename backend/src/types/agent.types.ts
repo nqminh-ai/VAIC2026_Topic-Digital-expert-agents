@@ -1,11 +1,13 @@
-export type AgentRole = 
-  | "planner" 
-  | "profile" 
-  | "credit" 
-  | "product" 
-  | "legal" 
-  | "risk" 
-  | "operations" 
+export type AgentRole =
+  | "planner"
+  | "profile"
+  | "credit"
+  | "product"
+  | "legal"
+  | "legal_audit"
+  | "fraud"
+  | "risk"
+  | "operations"
   | "governance";
 
 export type AgentStatus = "pending" | "running" | "completed" | "blocked" | "failed";

@@ -13,10 +13,11 @@ export interface DecisionMatrixOutput {
 export const decideNextAction = (
   creditFindings: DecisionEnvelope[],
   productFindings: DecisionEnvelope[],
-  legalFindings: DecisionEnvelope[]
+  legalFindings: DecisionEnvelope[],
+  fraudFindings: DecisionEnvelope[] = []
 ): DecisionMatrixOutput => {
   const policy = decisionPolicy.decisionMatrix;
-  const allFindings = [...creditFindings, ...productFindings, ...legalFindings];
+  const allFindings = [...creditFindings, ...productFindings, ...legalFindings, ...fraudFindings];
   
   const conditions: ConditionPrecedent[] = [];
   const requiredFixes: string[] = [];

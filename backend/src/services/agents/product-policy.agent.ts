@@ -1,6 +1,5 @@
 import { AgentTrace } from "../../types/trace.types";
 import { ProductOption, PricingOffer, DecisionEnvelope } from "../../types/agent.types";
-import { getCachedPolicy, setCachedPolicy } from "../governance/semantic-cache.service";
 import { loadRetailCase } from "../data/retail-case-loader";
 import { productCatalog } from "../../config/policy";
 
@@ -10,23 +9,6 @@ export const runProductPolicyAgent = async (
   isReprice: boolean = false
 ): Promise<AgentTrace> => {
   const startedAt = new Date().toISOString();
-
-  // 1. Try to read from Redis cache
-  const cacheKey = `product-policy:${productCatalog.version}:${caseId}:reprice:${isReprice}`;
-  const cachedTraceStr = await getCachedPolicy(cacheKey);
-  if (cachedTraceStr) {
-    try {
-      const cachedTrace = JSON.parse(cachedTraceStr) as AgentTrace;
-      // Refresh IDs and timestamps to look fresh
-      cachedTrace.id = `trace-product-${Date.now()}`;
-      cachedTrace.runId = runId;
-      cachedTrace.startedAt = startedAt;
-      cachedTrace.completedAt = new Date().toISOString();
-      return cachedTrace;
-    } catch (e) {
-      console.warn("Failed to parse cached product policy trace, recalculating:", e);
-    }
-  }
 
   const retailCase = await loadRetailCase(caseId);
 
@@ -90,30 +72,6 @@ export const runProductPolicyAgent = async (
       ruleIds: [productCatalog.ruleIds.repricedClean],
       citations: [productCatalog.citations.repricedClean]
     });
-  } else if (productCatalog.legacyInsuranceConflictCaseIds.includes(caseId)) {
-    // Legacy campaign conflict kept in the complex demo case so the compliance
-    // self-correction loop can detect and remove insurance-linked pricing.
-    if (retailCase.insurancePreference === "accepted") {
-      appliedRate = homeLoanProduct.preferentialRate; // 7.5%
-      insuranceTyingApplied = true;
-      note = "Lãi suất ưu đãi 7.5% đi kèm điều kiện tham gia bảo hiểm nhân thọ.";
-    } else {
-      appliedRate = homeLoanProduct.baseRate; // 8.3%
-      insuranceTyingApplied = true;
-      note = "Lãi suất 8.3% do khách hàng từ chối tham gia gói bảo hiểm nhân thọ đi kèm.";
-    }
-
-    findings.push({
-      decisionId: `dec-product-pricing-trap-${Date.now()}`,
-      agent: "product",
-      status: "PASS",
-      severity: "WARNING",
-      blocksAt: "NONE",
-      finding: `Áp dụng gói định giá ưu đãi: Lãi suất 7.5% nếu mua bảo hiểm, ngược lại là ${homeLoanProduct.baseRate * 100}%.`,
-      evidence: { appliedRate, insuranceTyingApplied, preference: retailCase.insurancePreference },
-      ruleIds: [productCatalog.ruleIds.insuranceTying],
-      citations: [productCatalog.citations.insuranceTying]
-    });
   } else {
     // Normal offers never use optional insurance as a pricing or eligibility input.
     appliedRate = homeLoanProduct.baseRate;
@@ -173,9 +131,6 @@ export const runProductPolicyAgent = async (
     startedAt,
     completedAt: new Date().toISOString()
   };
-
-  // Write compiled trace back to Redis cache
-  await setCachedPolicy(cacheKey, JSON.stringify(traceResult));
 
   return traceResult;
 };

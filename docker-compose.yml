@@ -17,21 +17,6 @@ services:
       timeout: 3s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: vaic_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    networks:
-      - vaic-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   neo4j:
     image: neo4j:5-community
     container_name: vaic_neo4j
@@ -68,8 +53,6 @@ services:
     environment:
       - NODE_ENV=development
     depends_on:
-      redis:
-        condition: service_healthy
       neo4j:
         condition: service_healthy
     networks:
@@ -98,5 +81,4 @@ networks:
     driver: bridge
 
 volumes:
-  redisdata:
   neo4jdata:

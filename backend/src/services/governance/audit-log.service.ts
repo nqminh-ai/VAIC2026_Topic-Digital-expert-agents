@@ -75,32 +75,40 @@ export const recordAuditEvent = async (
   const eventId = `evt-${crypto.randomUUID()}`;
   const timestamp = new Date().toISOString();
 
-  const client = await pgPool.connect();
   try {
-    await client.query("BEGIN");
-    // Holds the lock for the duration of this transaction only (pg_advisory_xact_lock).
-    await client.query("SELECT pg_advisory_xact_lock($1)", [AUDIT_CHAIN_LOCK_KEY]);
+    const client = await pgPool.connect();
+    try {
+      await client.query("BEGIN");
+      // Holds the lock for the duration of this transaction only (pg_advisory_xact_lock).
+      await client.query("SELECT pg_advisory_xact_lock($1)", [AUDIT_CHAIN_LOCK_KEY]);
 
-    const prevResult = await client.query<{ hash: string }>(
-      "SELECT hash FROM audit_events ORDER BY seq DESC LIMIT 1"
-    );
-    const prevHash = prevResult.rows[0]?.hash ?? GENESIS_HASH;
+      const prevResult = await client.query<{ hash: string }>(
+        "SELECT hash FROM audit_events ORDER BY seq DESC LIMIT 1"
+      );
+      const prevHash = prevResult.rows[0]?.hash ?? GENESIS_HASH;
 
-    const eventForHash = { eventId, runId, timestamp, actor, actionType, status: finalStatus, details };
-    const hash = computeHash(prevHash, eventForHash);
+      const eventForHash = { eventId, runId, timestamp, actor, actionType, status: finalStatus, details };
+      const hash = computeHash(prevHash, eventForHash);
 
-    await client.query(
-      `INSERT INTO audit_events (event_id, run_id, timestamp, actor, action_type, status, details, prev_hash, hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [eventId, runId, timestamp, actor, actionType, finalStatus, details, prevHash, hash]
-    );
+      await client.query(
+        `INSERT INTO audit_events (event_id, run_id, timestamp, actor, action_type, status, details, prev_hash, hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [eventId, runId, timestamp, actor, actionType, finalStatus, details, prevHash, hash]
+      );
 
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
+      await client.query("COMMIT");
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.warn("Audit Log: Rollback failed, connection likely closed:", rollbackErr);
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (dbErr) {
+    console.error("WARNING: Failed to write audit event to database:", dbErr);
   }
 
   return { eventId, runId, timestamp, actor, actionType, status: finalStatus, details };

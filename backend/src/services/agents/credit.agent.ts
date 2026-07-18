@@ -37,7 +37,7 @@ export const runCreditAgent = async (
     runId,
     agent: "credit",
     task: "Assess credit risk and calculate financial ratios",
-    status: assessment.creditDecision === "FAIL" ? "failed" : "completed",
+    status: "completed",
     summary,
     toolCalls: [
       {

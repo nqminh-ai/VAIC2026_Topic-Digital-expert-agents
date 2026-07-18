@@ -7,10 +7,14 @@ async function main() {
     const result = await executeOrchestration(prompt, "officer.tam");
     console.log("\nRESULT SUCCESS!");
     console.log("Final Answer:", result.finalAnswer);
-    console.log("Traces Summary:");
-    result.traces.forEach(t => {
-      console.log(`- Agent [${t.agent}]: ${t.summary}`);
-    });
+    if ("traces" in result) {
+      console.log("Traces Summary:");
+      result.traces.forEach(t => {
+        console.log(`- Agent [${t.agent}]: ${t.summary}`);
+      });
+    } else {
+      console.log(`Advisory mode: ${result.mode}`);
+    }
   } catch (error) {
     console.error("Error during execution:", error);
   }

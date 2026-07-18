@@ -7,7 +7,6 @@
     {"productId":"PROD-AUTO-REFINANCE","name":"SHB Auto Refinance","baseRate":0.095,"preferentialRate":0.089,"tenureYearsMax":8,"insuranceRequired":false}
   ],
   "eligibility": {"autoRefinanceProductId":"PROD-AUTO-REFINANCE"},
-  "legacyInsuranceConflictCaseIds": ["case-complex-main"],
   "ruleIds": {
     "repricedClean":"PRODUCT_REPRICE_CLEAN",
     "insuranceTying":"PRODUCT_PRICING_INSURANCE_TYING",

@@ -33,6 +33,8 @@ interface OrchestrationStoreState {
   startedAt?: number;
   steps: PipelineStep[];
   response?: OrchestrationResponse;
+  advisoryMode?: "ADVISORY_QA" | "OUT_OF_DOMAIN";
+  advisoryFinalAnswer?: string;
   error?: string;
   history: RunMetrics[];
 
@@ -64,6 +66,8 @@ export const useOrchestrationStore = create<OrchestrationStoreState>()((set, get
       startedAt: Date.now(),
       steps: [],
       response: undefined,
+      advisoryMode: undefined,
+      advisoryFinalAnswer: undefined,
       error: undefined,
     }),
 
@@ -128,11 +132,55 @@ export const useOrchestrationStore = create<OrchestrationStoreState>()((set, get
       return;
     }
 
+    if (event.type === "advisory_final") {
+      // No LangGraph run happened — build the fixed template directly with "planner"
+      // done and every other stage skipped, instead of replaying node_update events
+      // for a pipeline that never executed.
+      const template = stepTemplateForRiskTier(state.riskTier);
+      const steps = template.map((key, idx) =>
+        idx === 0 ? { ...buildStep(key, "done" as StepStatus), trace: event.response.plannerTrace } : buildStep(key, "skipped" as StepStatus)
+      );
+      const completedAt = Date.now();
+      const durationMs = state.startedAt ? completedAt - state.startedAt : 0;
+
+      const metrics: RunMetrics = {
+        runId: event.response.runId,
+        prompt: state.prompt,
+        durationMs,
+        agentStepCount: 1,
+        toolCallCount: event.response.plannerTrace.toolCalls.length,
+        modelCallsUsed: event.response.plannerTrace.toolCalls.length > 0 ? 1 : 0,
+        finalAnswer: event.response.finalAnswer,
+        completedAt,
+      };
+
+      set({
+        phase: "done",
+        steps,
+        runId: event.response.runId,
+        advisoryMode: event.response.mode,
+        advisoryFinalAnswer: event.response.finalAnswer,
+        history: [metrics, ...state.history].slice(0, 20),
+      });
+      return;
+    }
+
     // event.type === "error"
     set({ phase: "error", error: event.message });
   },
 
   fail: message => set({ phase: "error", error: message }),
 
-  reset: () => set({ phase: "idle", prompt: "", runId: undefined, riskTier: undefined, steps: [], response: undefined, error: undefined }),
+  reset: () =>
+    set({
+      phase: "idle",
+      prompt: "",
+      runId: undefined,
+      riskTier: undefined,
+      steps: [],
+      response: undefined,
+      advisoryMode: undefined,
+      advisoryFinalAnswer: undefined,
+      error: undefined,
+    }),
 }));

@@ -1,13 +1,16 @@
-import { OrchestrationResponse, OrchestrationStreamEvent } from "../../types/orchestration.types";
+import { OrchestrationResponse, OrchestrationStreamEvent, AdvisoryResponse } from "../../types/orchestration.types";
 import { CostBudgetStatus, AgentTrace } from "../../types/trace.types";
 import { RetailCase } from "../../types/case.types";
-import { RETAIL_CASES } from "../data/retail-case-data";
+import { loadRetailCase } from "../data/retail-case-loader";
 import { maskPiiPayload } from "../governance/pii-masking.service";
 import { recordAuditEvent, getAuditEventsByRun } from "../governance/audit-log.service";
 import { saveOrchestrationRun } from "./trace.service";
 import { orchestrationGraph, assembleTraces, OrchestrationState } from "./orchestration-graph";
-import { requireDemoInput } from "./input-router.service";
+import { routeOrExtractInput, OrchestrationInputError } from "./input-router.service";
+import { classifyIntent } from "./intent-classifier.service";
+import { runAdvisoryAgent } from "../agents/advisory.agent";
 import { buildAnswerTransparency } from "../governance/citation-governance.service";
+import { buildReasoningNarrative } from "./reasoning-narrative.service";
 import { decisionPolicy } from "../../config/policy";
 
 // Order matters: within the self-correction chunk, selfCorrectionTrace, productTrace and
@@ -16,10 +19,12 @@ import { decisionPolicy } from "../../config/policy";
 // matching the actual business narrative instead of raw object-key order.
 const TRACE_KEYS = [
   "plannerTrace",
+  "planningTrace",
   "profileTrace",
   "selfCorrectionTrace",
   "productTrace",
   "creditTrace",
+  "fraudTrace",
   "legalTrace",
   "riskTrace",
   "opsTrace",
@@ -42,8 +47,11 @@ const buildOrchestrationResponse = async (
       "HYBRID_APPROVAL"
     );
     const response: OrchestrationResponse = {
+      mode: "CREDIT_APPRAISAL",
       runId,
       finalAnswer: transparentAnswer.finalAnswer,
+      reasoning:
+        "Planner phát hiện tín hiệu chặn (BLOCKER) ngay tại bước phân loại đầu vào: nội dung yêu cầu chứa chỉ thị điều khiển hệ thống trái phép (prompt injection). Quyết định cuối cùng: chặn bảo mật (SECURITY_BLOCKED). Không agent nghiệp vụ nào được chạy tiếp.",
       traces,
       budgetStatus: {
         piiMasked: true,
@@ -106,8 +114,10 @@ const buildOrchestrationResponse = async (
   };
 
   const response: OrchestrationResponse = {
+    mode: "CREDIT_APPRAISAL",
     runId,
     finalAnswer: transparentAnswer.finalAnswer,
+    reasoning: buildReasoningNarrative(maskedTraces as AgentTrace[], finalDecision, requiredFixes),
     traces: maskedTraces,
     approvalTicketId: ticketId,
     conditions,
@@ -124,15 +134,43 @@ const buildOrchestrationResponse = async (
   return response;
 };
 
+/**
+ * Builds the fixed-template AdvisoryResponse: a single planner trace, no LangGraph run.
+ * Shared by both the synchronous and streaming entry points so the "Skipped" rendering
+ * the frontend applies to every other pipeline stage stays consistent across both paths.
+ */
+const runAdvisoryFlow = async (runId: string, prompt: string, requestedBy: string, intent: "ADVISORY_QA" | "OUT_OF_DOMAIN"): Promise<AdvisoryResponse> => {
+  const { trace, finalAnswer } = await runAdvisoryAgent(runId, prompt, intent);
+  await recordAuditEvent(
+    runId,
+    requestedBy,
+    "agent_call",
+    { prompt, intent },
+    "allowed",
+    `Chuyên viên ${requestedBy} gửi yêu cầu được phân loại là ${intent} — không đi qua luồng thẩm định tín dụng.`
+  );
+  return { mode: intent, runId, finalAnswer, plannerTrace: trace, auditEvents: await getAuditEventsByRun(runId) };
+};
+
 export const executeOrchestration = async (
   prompt: string,
   requestedBy: string,
   approvalToken?: string,
   requestedCaseId?: string
-): Promise<OrchestrationResponse> => {
+): Promise<OrchestrationResponse | AdvisoryResponse> => {
   const runId = `run-${Date.now()}`;
-  const { caseId } = requireDemoInput(prompt, requestedCaseId);
-  const retailCase = RETAIL_CASES[caseId];
+
+  if (!requestedCaseId) {
+    const { intent } = await classifyIntent(prompt);
+    if (intent === "ADVISORY_QA" || intent === "OUT_OF_DOMAIN") {
+      return runAdvisoryFlow(runId, prompt, requestedBy, intent);
+    }
+  }
+
+  const routed = await routeOrExtractInput(prompt, requestedCaseId);
+  if (!routed.ok) throw new OrchestrationInputError(routed.code, routed.message, routed.questions);
+  const { caseId } = routed;
+  const retailCase = routed.extractedCase ?? await loadRetailCase(caseId);
 
   // Governance: Record starting audit event, attributed to the authenticated human requester.
   await recordAuditEvent(runId, requestedBy, "agent_call", { prompt, caseId }, "allowed", `Chuyên viên ${requestedBy} khởi chạy quy trình điều phối cho caseId: ${caseId}`);
@@ -179,8 +217,20 @@ export const streamOrchestration = async (
 ): Promise<void> => {
   const runId = `run-${Date.now()}`;
   console.log(">>> RECEIVED PROMPT IN BACKEND:", JSON.stringify(prompt));
-  const { caseId } = requireDemoInput(prompt, requestedCaseId);
-  const retailCase = RETAIL_CASES[caseId];
+
+  if (!requestedCaseId) {
+    const { intent } = await classifyIntent(prompt);
+    if (intent === "ADVISORY_QA" || intent === "OUT_OF_DOMAIN") {
+      const response = await runAdvisoryFlow(runId, prompt, requestedBy, intent);
+      onEvent({ type: "advisory_final", response });
+      return;
+    }
+  }
+
+  const routed = await routeOrExtractInput(prompt, requestedCaseId);
+  if (!routed.ok) throw new OrchestrationInputError(routed.code, routed.message, routed.questions);
+  const { caseId } = routed;
+  const retailCase = routed.extractedCase ?? await loadRetailCase(caseId);
 
   await recordAuditEvent(runId, requestedBy, "agent_call", { prompt, caseId }, "allowed", `Chuyên viên ${requestedBy} khởi chạy quy trình điều phối cho caseId: ${caseId}`);
 

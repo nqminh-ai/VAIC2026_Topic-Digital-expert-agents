@@ -19,7 +19,7 @@ export const orchestratePrompt = async (req: AuthenticatedRequest, res: Response
     return res.status(200).json(result);
   } catch (error) {
     if (error instanceof OrchestrationInputError) {
-      return res.status(422).json({ error: error.message, code: error.code });
+      return res.status(422).json({ error: error.message, code: error.code, questions: error.questions });
     }
     console.error("Orchestration error:", error);
     return res.status(500).json({ error: "Internal server error during orchestration" });
@@ -50,7 +50,7 @@ export const orchestratePromptStream = async (req: AuthenticatedRequest, res: Re
     await streamOrchestration(prompt, requestedBy, approvalToken, writeEvent, caseId);
   } catch (error) {
     if (error instanceof OrchestrationInputError) {
-      writeEvent({ type: "error", message: error.message });
+      writeEvent({ type: "error", message: error.message, code: error.code, questions: error.questions });
     } else {
       console.error("Orchestration stream error:", error);
       writeEvent({ type: "error", message: "Internal server error during orchestration" });

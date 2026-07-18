@@ -6,6 +6,8 @@ import { runCustomerProfileAgent } from "../agents/customer-profile.agent";
 import { runProductPolicyAgent } from "../agents/product-policy.agent";
 import { runCreditAgent } from "../agents/credit.agent";
 import { runLegalAgent } from "../agents/legal.agent";
+import { runLegalAuditAgent } from "../agents/legal-audit.agent";
+import { runFraudInvestigationAgent } from "../agents/fraud-investigation.agent";
 import { runOperationsAgent } from "../agents/operations.agent";
 import { decideNextAction } from "./decision-matrix.service";
 import { recordAuditEvent } from "../governance/audit-log.service";
@@ -18,6 +20,7 @@ import { evaluateAutoApprovalPolicy } from "../rules/auto-approval-policy.servic
 import { projectBusinessValue } from "../business/profitability-engine";
 import { decisionPolicy, productCatalog } from "../../config/policy";
 import { assessDecisionConfidence } from "../governance/decision-confidence.service";
+import { runPlanningPhase } from "../mcp/planning-client";
 
 /**
  * Fast-lane eligibility is a conservative "clean file" rule: small ticket size,
@@ -66,10 +69,15 @@ export const OrchestrationAnnotation = Annotation.Root({
   // loop can transparently replace the product/legal trace with its re-priced rerun,
   // exactly like the array-index replacement the previous imperative code did.
   plannerTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
+  planningTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
+  optionalToolResults: Annotation<Record<string, unknown>>({ default: () => ({}), reducer: (_prev, next) => next }),
+  shouldRunFraudInvestigation: Annotation<boolean>({ default: () => false, reducer: (_prev, next) => next }),
   profileTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
   productTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
   creditTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
   legalTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
+  legalAuditTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
+  fraudTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
   selfCorrectionTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
   riskTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
   opsTrace: Annotation<AgentTrace | undefined>({ default: () => undefined, reducer: (_prev, next) => next }),
@@ -135,6 +143,23 @@ const classifyNode = async (state: OrchestrationState): Promise<Partial<Orchestr
   };
 };
 
+/**
+ * Optional read-only planning phase: an LLM chooses extra tool calls via an in-process
+ * MCP server/client pair (see mcp/planning-client.ts). It can only enrich context — it
+ * never sets riskTier, never skips a mandatory agent, and a planning failure degrades to
+ * "no extra context" instead of blocking the pipeline. mandatoryAgentsByLane enforcement
+ * in riskNode is completely unaffected by anything this node does.
+ */
+const planningNode = async (state: OrchestrationState): Promise<Partial<OrchestrationState>> => {
+  const { trace, optionalToolResults, shouldRunFraudInvestigation } = await runPlanningPhase(state.runId, state.caseId, state.riskTier);
+  return {
+    planningTrace: trace,
+    optionalToolResults,
+    shouldRunFraudInvestigation,
+    modelCallsCount: trace.toolCalls.length > 0 ? 1 : 0,
+  };
+};
+
 const profileNode = async (state: OrchestrationState): Promise<Partial<OrchestrationState>> => {
   const trace = await runCustomerProfileAgent(state.runId, state.caseId);
   return { profileTrace: trace, modelCallsCount: 1 };
@@ -148,6 +173,37 @@ const productNode = async (state: OrchestrationState): Promise<Partial<Orchestra
 const creditNode = async (state: OrchestrationState): Promise<Partial<OrchestrationState>> => {
   const trace = await runCreditAgent(state.runId, state.caseId);
   return { creditTrace: trace, modelCallsCount: 1 };
+};
+
+/**
+ * Optional agent: the actual investigation only runs when the planning-phase LLM flagged
+ * a concrete anomaly signal via flag_for_fraud_investigation. Always occupies this slot in
+ * the graph (LangGraph conditional edges route to registered nodes, not "skip a node"), but
+ * skips its own work with a lightweight trace when not flagged — no extra model/DB calls.
+ * Not in mandatoryAgentsByLane, so its absence never trips the confidence gate — but when
+ * it DOES run and finds something, its BLOCKER-severity findings flow into decideNextAction
+ * like any other agent's, and can flip both the fast-lane and complex-lane verdict.
+ */
+const fraudNode = async (state: OrchestrationState): Promise<Partial<OrchestrationState>> => {
+  if (!state.shouldRunFraudInvestigation) {
+    return {
+      fraudTrace: {
+        id: `trace-fraud-${Date.now()}`,
+        runId: state.runId,
+        agent: "fraud",
+        task: "Investigate anomaly signals in the customer profile",
+        status: "completed",
+        summary: "Planner không phát hiện tín hiệu bất thường cần điều tra thêm cho hồ sơ này.",
+        toolCalls: [],
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      },
+      modelCallsCount: 0,
+    };
+  }
+
+  const trace = await runFraudInvestigationAgent(state.runId, state.caseId);
+  return { fraudTrace: trace, modelCallsCount: 0 };
 };
 
 const getCreditAssessment = (state: OrchestrationState): CreditAssessmentResult | undefined =>
@@ -169,6 +225,17 @@ const autoPolicyNode = async (state: OrchestrationState): Promise<Partial<Orches
       approvalMode: "HYBRID_APPROVAL",
       confidence,
       requiredFixes: ["Auto-policy không đủ dữ liệu tin cậy; chuyển thẩm định thủ công.", ...confidence.reasons],
+    };
+  }
+
+  const fraudFindings = state.fraudTrace?.findings || [];
+  if (fraudFindings.length) {
+    return {
+      riskTier: "COMPLEX",
+      finalDecision: "HUMAN_ESCALATION",
+      approvalMode: "HYBRID_APPROVAL",
+      confidence,
+      requiredFixes: fraudFindings.map(f => f.requiredFix || f.finding),
     };
   }
 
@@ -235,6 +302,17 @@ const selfCorrectionNode = async (state: OrchestrationState): Promise<Partial<Or
   return { selfCorrectionTrace, productTrace, legalTrace, modelCallsCount: 2 };
 };
 
+/**
+ * Independent verification step: re-derives the Legal Agent's citations from the
+ * official source catalog (see citation-audit.service.ts) instead of trusting the
+ * `citations` strings already on legalTrace. Runs after the self-correction reprice
+ * loop too, since that loop overwrites legalTrace with a fresh legal reasoning pass.
+ */
+const legalAuditNode = async (state: OrchestrationState): Promise<Partial<OrchestrationState>> => {
+  const trace = await runLegalAuditAgent(state.runId, state.legalTrace);
+  return { legalAuditTrace: trace, modelCallsCount: 0 };
+};
+
 const riskNode = async (state: OrchestrationState): Promise<Partial<OrchestrationState>> => {
   const mandatoryFailure = [state.profileTrace, state.productTrace, state.creditTrace, state.legalTrace]
     .find(trace => !trace || trace.status === "failed");
@@ -253,7 +331,8 @@ const riskNode = async (state: OrchestrationState): Promise<Partial<Orchestratio
   const matrixOutput = decideNextAction(
     state.creditTrace?.findings || [],
     state.productTrace?.findings || [],
-    state.legalTrace?.findings || []
+    [...(state.legalTrace?.findings || []), ...(state.legalAuditTrace?.findings || [])],
+    state.fraudTrace?.findings || []
   );
 
   const riskTrace: AgentTrace = {
@@ -270,6 +349,7 @@ const riskNode = async (state: OrchestrationState): Promise<Partial<Orchestratio
           creditFindingsCount: state.creditTrace?.findings?.length || 0,
           productFindingsCount: state.productTrace?.findings?.length || 0,
           legalFindingsCount: state.legalTrace?.findings?.length || 0,
+          fraudFindingsCount: state.fraudTrace?.findings?.length || 0,
         },
         output: matrixOutput as unknown as Record<string, unknown>,
         status: "success",
@@ -328,22 +408,27 @@ const hasInsuranceTyingViolation = (state: OrchestrationState): boolean =>
 
 const builder = new StateGraph(OrchestrationAnnotation)
   .addNode("classify", classifyNode)
+  .addNode("planning", planningNode)
   .addNode("profile", profileNode)
   .addNode("product", productNode)
   .addNode("credit", creditNode)
+  .addNode("fraud", fraudNode)
   .addNode("autoPolicy", autoPolicyNode)
   .addNode("legal", legalNode)
   .addNode("selfCorrection", selfCorrectionNode)
+  .addNode("legalAudit", legalAuditNode)
   .addNode("risk", riskNode)
   .addNode("operations", operationsNode)
   .addEdge(START, "classify")
   .addConditionalEdges("classify", state => (state.terminalReason === "BLOCKED" ? "blocked" : "continue"), {
     blocked: END,
-    continue: "profile",
+    continue: "planning",
   })
+  .addEdge("planning", "profile")
   .addEdge("profile", "product")
   .addEdge("product", "credit")
-  .addConditionalEdges("credit", state => (state.riskTier === "FAST" ? "fast" : "complex"), {
+  .addEdge("credit", "fraud")
+  .addConditionalEdges("fraud", state => (state.riskTier === "FAST" ? "fast" : "complex"), {
     fast: "autoPolicy",
     complex: "legal",
   })
@@ -353,9 +438,10 @@ const builder = new StateGraph(OrchestrationAnnotation)
   })
   .addConditionalEdges("legal", state => (hasInsuranceTyingViolation(state) ? "reprice" : "noReprice"), {
     reprice: "selfCorrection",
-    noReprice: "risk",
+    noReprice: "legalAudit",
   })
-  .addEdge("selfCorrection", "risk")
+  .addEdge("selfCorrection", "legalAudit")
+  .addEdge("legalAudit", "risk")
   .addEdge("risk", "operations")
   .addEdge("operations", END);
 
@@ -375,11 +461,14 @@ export const orchestrationGraph = builder.compile({ checkpointer });
 export const assembleTraces = (state: OrchestrationState): AgentTrace[] =>
   [
     state.plannerTrace,
+    state.planningTrace,
     state.profileTrace,
     state.productTrace,
     state.creditTrace,
+    state.fraudTrace,
     state.legalTrace,
     state.selfCorrectionTrace,
+    state.legalAuditTrace,
     state.riskTrace,
     state.opsTrace,
   ].filter((t): t is AgentTrace => t !== undefined);

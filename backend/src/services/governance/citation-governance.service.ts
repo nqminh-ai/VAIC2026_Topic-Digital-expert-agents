@@ -70,7 +70,7 @@ export const buildAnswerTransparency = (
     ? "LOW"
     : hasInternalSource || requiresHumanReview ? "MEDIUM" : "HIGH";
 
-  const decisionTraceIds = traces.filter(trace => ["credit", "product", "legal", "risk"].includes(trace.agent)).map(trace => trace.id);
+  const decisionTraceIds = traces.filter(trace => ["credit", "product", "legal", "legal_audit", "risk"].includes(trace.agent)).map(trace => trace.id);
   const decisionCitationIds = citations.filter(citation => decisionCitationIdSet.has(citation.id)).map(citation => citation.id);
   const claims: AnswerClaim[] = [
     { claimId: "final-decision", kind: "DECISION", text: `Kết luận điều phối: ${finalDecision}.`, citationIds: decisionCitationIds, traceIds: decisionTraceIds },

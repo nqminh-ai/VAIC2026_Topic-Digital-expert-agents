@@ -11,6 +11,29 @@ import { decideNextAction } from "./services/orchestration/decision-matrix.servi
 import { maskPiiPayload } from "./services/governance/pii-masking.service";
 import { AgentTrace } from "./types/trace.types";
 import { assessDecisionConfidence } from "./services/governance/decision-confidence.service";
+import { getKnowledgeGraphCatalog, validateKnowledgeGraphCatalog } from "./services/data/knowledge-graph-seed.service";
+
+validateKnowledgeGraphCatalog();
+const knowledgeGraphCatalog = getKnowledgeGraphCatalog();
+assert.ok(
+  knowledgeGraphCatalog.documents.some(document => document.documentId === "SBV_ASSET_CLASSIFICATION_CONSOLIDATED_2025"),
+  "Knowledge graph must use the current consolidated asset-classification source"
+);
+assert.ok(
+  knowledgeGraphCatalog.clauses.some(clause => clause.clauseId === "Clause-Personal-Data-Consent"),
+  "Consent decisions must be grounded in a graph clause"
+);
+assert.ok(
+  knowledgeGraphCatalog.policyRules.some(
+    rule => rule.ruleId === "LEGAL_CONSENT_MISSING" && rule.gateId === "EXTERNAL_DATA_CALL"
+  ),
+  "Consent rule must block before an external data call"
+);
+assert.equal(
+  knowledgeGraphCatalog.sourceSystems.find(source => source.sourceSystemId === "CIC")?.ingestionMode,
+  "QUERY_JUST_IN_TIME",
+  "Personal CIC data must not be bulk-ingested into the legal graph"
+);
 
 const assess = (caseId: string) => {
   const retailCase = RETAIL_CASES[caseId];

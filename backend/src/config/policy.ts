@@ -12,7 +12,7 @@ export interface DecisionPolicy {
   policyId: string;
   version: string;
   effectiveFrom: string;
-  routing: { minimumPromptCharacters: number; maximumPromptCharacters: number; minimumPromptTokens: number; minimumCaseMatchScore: number; minimumWinnerMargin: number; exactMatchScore: number };
+  routing: { minimumPromptCharacters: number; maximumPromptCharacters: number; minimumPromptTokens: number; exactMatchScore: number };
   credit: {
     stressAnnualRate: number; maximumDtiPercent: number; maximumLtvPercent: number; maximumMortgageTenureYears: number;
     autoRefinanceTenureYears: number; creditLimitReductionFactor: number; creditCardMonthlyObligationRate: number;
@@ -32,18 +32,23 @@ export interface DecisionPolicy {
     reasonCodes: Record<"creditRestructured" | "legalConditionsRequired" | "standardCheckPassed", string>;
     requiredFixes: Record<"consentMissing" | "projectEvidenceMissing" | "creditFailed", string>;
   };
+  fraud: {
+    ruleIds: Record<"incomeDebtMismatch" | "collateralValueOutlier" | "ageTenureMismatch" | "evidenceInconsistency", string>;
+    incomeDebtRatioCeiling: number;
+    collateralValueToLoanCeiling: number;
+    minimumRepaymentAgeMargin: number;
+  };
   runtimeBudget: { maximumModelCalls: number; estimatedCostPerModelCallUsd: number; securityBlockEstimatedCostUsd: number };
   uncertainty: { minimumConfidenceScore: number; minimumEvidenceCoverage: number; requireAllMandatoryAgents: boolean; requireSuccessfulToolCalls: boolean; requireLegalCitations: boolean; mandatoryAgentsByLane: Record<"FAST" | "COMPLEX", string[]> };
 }
 
 export interface RoutingCatalog {
   catalogId: string; version: string; injectionCaseId: string; injectionSignals: string[]; creditIntentSignals: string[];
-  cases: Array<{ caseId: string; signals: Array<{ text: string; weight: number }> }>;
 }
 
 export interface ProductCatalog {
   catalogId: string; version: string; primaryProductId: string; products: ProductOption[];
-  eligibility: { autoRefinanceProductId: string }; legacyInsuranceConflictCaseIds: string[];
+  eligibility: { autoRefinanceProductId: string };
   ruleIds: Record<"repricedClean" | "insuranceTying" | "insuranceIndependent" | "legalInsuranceTying", string>;
   citations: Record<"repricedClean" | "insuranceTying" | "insuranceIndependent", string>;
 }

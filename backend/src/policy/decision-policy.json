@@ -6,8 +6,6 @@
     "minimumPromptCharacters": 12,
     "maximumPromptCharacters": 2000,
     "minimumPromptTokens": 3,
-    "minimumCaseMatchScore": 2,
-    "minimumWinnerMargin": 1,
     "exactMatchScore": 100
   },
   "credit": {
@@ -93,6 +91,17 @@
     "maximumModelCalls": 30,
     "estimatedCostPerModelCallUsd": 0.015,
     "securityBlockEstimatedCostUsd": 0.02
+  },
+  "fraud": {
+    "ruleIds": {
+      "incomeDebtMismatch": "FRAUD_INCOME_DEBT_MISMATCH",
+      "collateralValueOutlier": "FRAUD_COLLATERAL_VALUE_OUTLIER",
+      "ageTenureMismatch": "FRAUD_AGE_TENURE_MISMATCH",
+      "evidenceInconsistency": "FRAUD_EVIDENCE_INCONSISTENCY"
+    },
+    "incomeDebtRatioCeiling": 15,
+    "collateralValueToLoanCeiling": 6,
+    "minimumRepaymentAgeMargin": 0
   },
   "uncertainty": {
     "minimumConfidenceScore": 0.9,

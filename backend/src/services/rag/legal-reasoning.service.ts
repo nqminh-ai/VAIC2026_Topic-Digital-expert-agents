@@ -70,7 +70,7 @@ const TOOLS: ChatCompletionTool[] = [
           clauseId: {
             type: "string",
             enum: LEGAL_LLM_CONTRACT.allowedClauseIds,
-            description: "ID điều khoản, ví dụ: Clause-Insurance-Tying, Clause-Marital-Property, Clause-Future-Property, Clause-Loan-Purpose, Clause-DTI-Limit, Clause-LTV-Limit, Clause-Tenure-Limit, Clause-CIC-History",
+            description: "ID điều khoản trong catalog đã được kiểm soát, gồm nguồn luật chính thức và policy nội bộ được gắn trạng thái xác minh.",
           },
         },
         required: ["clauseId"],
@@ -144,10 +144,21 @@ const validateSubmittedFindings = (value: unknown): DecisionEnvelope[] => {
     if (!evidence || typeof evidence !== "object" || typeof (evidence as Record<string, unknown>).summary !== "string") {
       throw new Error(`Legal finding ${index} has no structured evidence.`);
     }
-    if (!Array.isArray(finding.ruleIds) || !finding.ruleIds.length || finding.ruleIds.some(rule => typeof rule !== "string")) {
+    let ruleIds: string[] = [];
+    if (Array.isArray(finding.ruleIds)) {
+      ruleIds = finding.ruleIds.map(r => String(r));
+    } else if (typeof finding.ruleIds === "string") {
+      ruleIds = [finding.ruleIds];
+    } else if (typeof finding.ruleId === "string") {
+      ruleIds = [finding.ruleId];
+    } else if (typeof finding.rule === "string") {
+      ruleIds = [finding.rule];
+    }
+
+    if (!ruleIds.length || ruleIds.some(rule => typeof rule !== "string" || !rule.trim())) {
       throw new Error(`Legal finding ${index} has no valid rule ID.`);
     }
-    if (finding.ruleIds.some(rule => !ALLOWED_LEGAL_RULE_IDS.has(String(rule)))) {
+    if (ruleIds.some(rule => !ALLOWED_LEGAL_RULE_IDS.has(rule))) {
       throw new Error(`Legal finding ${index} contains a rule outside the approved contract.`);
     }
     if (!Array.isArray(finding.citations) || finding.citations.some(citation => typeof citation !== "string")) {
@@ -163,7 +174,7 @@ const validateSubmittedFindings = (value: unknown): DecisionEnvelope[] => {
       blocksAt: finding.blocksAt as DecisionEnvelope["blocksAt"],
       finding: finding.finding as string,
       evidence: evidence as Record<string, unknown>,
-      ruleIds: finding.ruleIds as string[],
+      ruleIds: ruleIds,
       citations: [],
       requiredFix: typeof finding.requiredFix === "string" ? finding.requiredFix : undefined,
     };
@@ -208,7 +219,7 @@ export const runLegalComplianceReasoning = async (
 
   // Data minimisation: the model never receives the raw user prompt. Only the narrow,
   // deterministic legal signal needed for this review crosses the model boundary.
-  const maritalSignatureWarning = /(thiếu|chưa\s+có|chưa\s+đủ).{0,40}(chữ\s*ký|ký\s*tên).{0,40}(vợ|chồng)|tài\s*sản\s*chung.{0,40}(thiếu|chưa\s+đủ).{0,20}(chữ\s*ký|ký\s*tên)/iu.test(prompt);
+  const maritalSignatureWarning = /(thiếu|chưa\s*(có|đủ|có\s+đủ)).{0,40}(chữ\s*ký|ký\s*tên).{0,40}(vợ|chồng)|tài\s*sản\s*chung.{0,50}(thiếu|chưa\s*(có|đủ|có\s+đủ)).{0,30}(chữ\s*ký|ký\s*tên)/iu.test(prompt);
   const reasoningInput: LegalReasoningInput = {
     maritalStatus: retailCase.demographic.maritalStatus,
     hasInsuranceTyingSignal,

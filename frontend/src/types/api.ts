@@ -7,6 +7,7 @@ export type AgentRole =
   | "credit"
   | "product"
   | "legal"
+  | "legal_audit"
   | "risk"
   | "operations"
   | "governance";
@@ -108,8 +109,11 @@ export interface AnswerTransparency {
 }
 
 export interface OrchestrationResponse {
+  mode?: "CREDIT_APPRAISAL";
   runId: string;
   finalAnswer: string;
+  /** Cross-agent narrative explaining WHY the decision landed where it did — see backend reasoning-narrative.service.ts. */
+  reasoning?: string;
   traces: AgentTrace[];
   approvalTicketId?: string;
   conditions?: ConditionPrecedent[];
@@ -141,10 +145,24 @@ export interface OrchestrationResponse {
 
 export type RiskTier = "FAST" | "COMPLEX";
 
+/**
+ * Returned instead of OrchestrationResponse when the backend's intent classifier routes
+ * a request away from the credit pipeline entirely (see backend intent-classifier.service.ts
+ * / advisory.agent.ts) — a single planner trace answers directly, no LangGraph run happened.
+ */
+export interface AdvisoryResponse {
+  mode: "ADVISORY_QA" | "OUT_OF_DOMAIN";
+  runId: string;
+  finalAnswer: string;
+  plannerTrace: AgentTrace;
+  auditEvents?: AuditEvent[];
+}
+
 export type OrchestrationStreamEvent =
   | { type: "node_update"; node: AgentRole; trace: AgentTrace; riskTier?: RiskTier }
   | { type: "final"; response: OrchestrationResponse }
-  | { type: "error"; message: string };
+  | { type: "advisory_final"; response: AdvisoryResponse }
+  | { type: "error"; message: string; code?: string; questions?: string[] };
 
 export type UserRole = "CREDIT_OFFICER" | "CREDIT_APPROVER";
 

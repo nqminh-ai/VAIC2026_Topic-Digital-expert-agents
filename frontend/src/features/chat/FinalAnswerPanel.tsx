@@ -1,4 +1,4 @@
-import { BookOpenCheck, CheckCircle2, CircleDashed, Clock3, ExternalLink, Landmark, ShieldCheck, TrendingUp, TicketCheck, TriangleAlert } from "lucide-react";
+import { BookOpenCheck, CheckCircle2, CircleDashed, Clock3, ExternalLink, Landmark, ShieldCheck, TrendingUp, TicketCheck, TriangleAlert, Workflow } from "lucide-react";
 import { Card } from "../../components/Card";
 import { Badge } from "../../components/Badge";
 import { Skeleton } from "../../components/Skeleton";
@@ -9,6 +9,9 @@ import styles from "./FinalAnswerPanel.module.css";
 export const FinalAnswerPanel = () => {
   const phase = useOrchestrationStore(s => s.phase);
   const response = useOrchestrationStore(s => s.response);
+  const advisoryMode = useOrchestrationStore(s => s.advisoryMode);
+  const advisoryFinalAnswer = useOrchestrationStore(s => s.advisoryFinalAnswer);
+  const runId = useOrchestrationStore(s => s.runId);
   const error = useOrchestrationStore(s => s.error);
 
   if (phase === "idle") {
@@ -27,7 +30,7 @@ export const FinalAnswerPanel = () => {
     );
   }
 
-  if (phase === "running" && !response) {
+  if (phase === "running" && !response && !advisoryMode) {
     return (
       <Card title="Kết luận thẩm định">
         <div className={styles.loading}>
@@ -39,11 +42,32 @@ export const FinalAnswerPanel = () => {
     );
   }
 
+  if (advisoryMode) {
+    return (
+      <Card
+        title="Trợ lý tư vấn nghiệp vụ"
+        action={runId ? <Badge tone="brand">Run {runId.replace("run-", "#")}</Badge> : undefined}
+      >
+        <p className={styles.answer}>{advisoryFinalAnswer}</p>
+      </Card>
+    );
+  }
+
   if (!response) return null;
 
   return (
     <Card title="Kết luận thẩm định" action={<Badge tone="brand">Run {response.runId.replace("run-", "#")}</Badge>}>
       <p className={styles.answer}>{response.finalAnswer}</p>
+
+      {response.reasoning && (
+        <div className={styles.reasoningPanel}>
+          <Workflow size={16} />
+          <div>
+            <span className={styles.reasoningLabel}>Diễn giải liên kết đa Agent</span>
+            <p className={styles.reasoningText}>{response.reasoning}</p>
+          </div>
+        </div>
+      )}
 
       {response.confidence?.status === "NEEDS_REVIEW" && (
         <div className={styles.errorBox} role="status">

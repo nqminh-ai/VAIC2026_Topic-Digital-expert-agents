@@ -13,6 +13,7 @@
     "@langchain/core": "^1.2.3",
     "@langchain/langgraph": "^1.4.8",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/supabase-js": "^2.110.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -21,7 +22,7 @@
     "neo4j-driver": "^6.2.0",
     "openai": "^6.48.0",
     "pg": "^8.22.0",
-    "redis": "^6.1.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

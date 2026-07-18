@@ -1,28 +1,21 @@
+import dotenv from "dotenv";
 import { Pool } from "pg";
 
-const pgHost = process.env.PG_HOST || "localhost";
-const pgPort = parseInt(process.env.PG_PORT || "5432", 10);
-const pgUser = process.env.PG_USER || "vaic";
-const pgPassword = process.env.PG_PASSWORD || "vaic_pass";
-const pgDatabase = process.env.PG_DB || "vaic_db";
+// Loaded here (not just in config/env.ts) so pgPool's connection string is correct
+// regardless of which module happens to import this file first in the dependency graph.
+dotenv.config();
 
-export const pgPool = process.env.SUPABASE_DB_URL 
-  ? new Pool({ 
-      connectionString: process.env.SUPABASE_DB_URL,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    })
-  : new Pool({
-      host: pgHost,
-      port: pgPort,
-      user: pgUser,
-      password: pgPassword,
-      database: pgDatabase,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+if (!process.env.SUPABASE_DB_URL) {
+  throw new Error("SUPABASE_DB_URL is required; Postgres now always connects through Supabase.");
+}
+
+export const pgPool = new Pool({
+  connectionString: process.env.SUPABASE_DB_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 500,
+  connectionTimeoutMillis: 5000,
+});
 
 pgPool.on("error", (err: Error) => {
   console.error("Unexpected error on idle PostgreSQL client:", err);

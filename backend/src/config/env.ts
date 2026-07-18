@@ -14,5 +14,7 @@ export const config = {
   publicDemoSession: process.env.ENABLE_PUBLIC_DEMO_SESSION === "true" || (process.env.NODE_ENV || "development") !== "production",
   fptMarketplaceApiKey: process.env.LEGAL_LLM_API_KEY || process.env.FPT_MARKETPLACE_API_KEY || "",
   fptMarketplaceBaseUrl: process.env.LEGAL_LLM_BASE_URL || process.env.FPT_MARKETPLACE_BASE_URL || "https://mkp-api.fptcloud.com",
-  fptLegalModel: process.env.LEGAL_LLM_MODEL || process.env.FPT_LEGAL_MODEL || "gpt-oss-120b",
+  fptLegalModel: process.env.LEGAL_LLM_MODEL || process.env.FPT_LEGAL_MODEL || "GLM-5.1",
+  fptPlannerModel: process.env.PLANNER_LLM_MODEL || process.env.FPT_PLANNER_MODEL || "gpt-oss-20b",
+  fptExtractionModel: process.env.EXTRACTION_LLM_MODEL || process.env.FPT_EXTRACTION_MODEL || "Qwen3-Coder-480B-A35B-Instruct",
 };

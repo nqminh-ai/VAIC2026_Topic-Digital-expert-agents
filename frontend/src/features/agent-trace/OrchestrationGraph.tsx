@@ -19,8 +19,9 @@ const NODE_LAYOUT: { id: string; stepKey?: StepKey; label: string; x: number; y:
   { id: "credit", stepKey: "credit", label: "Credit Risk", x: 500, y: 260 },
   { id: "legal", stepKey: "legal", label: "Legal & Compliance", x: 500, y: 340 },
   { id: "selfCorrection", stepKey: "self-correction", label: "Self-Correction Loop", x: 700, y: 420 },
-  { id: "risk", stepKey: "risk", label: "Risk Consolidation", x: 500, y: 420 },
-  { id: "operations", stepKey: "operations", label: "Operations", x: 300, y: 500 },
+  { id: "legalAudit", stepKey: "legal_audit", label: "Legal Audit", x: 500, y: 420 },
+  { id: "risk", stepKey: "risk", label: "Risk Consolidation", x: 500, y: 500 },
+  { id: "operations", stepKey: "operations", label: "Operations", x: 300, y: 580 },
 ];
 
 const findStep = (steps: PipelineStep[], key?: StepKey) => (key ? steps.find(s => s.key === key) : undefined);
@@ -43,7 +44,7 @@ export const OrchestrationGraph = () => {
         else if (opsStep && opsStep.status !== "pending") status = "done";
         else if (productStep?.status === "done") status = "in_progress";
         else status = "pending";
-      } else if (["credit", "legal", "risk", "selfCorrection"].includes(n.id) && riskTier === "FAST") {
+      } else if (["credit", "legal", "risk", "selfCorrection", "legalAudit"].includes(n.id) && riskTier === "FAST") {
         status = "inactive";
       } else {
         const step = findStep(steps, n.stepKey);
@@ -71,16 +72,17 @@ export const OrchestrationGraph = () => {
       { id: "e-product-credit", source: "product", target: "credit" },
       { id: "e-fast-ops", source: "markFastPass", target: "operations" },
       { id: "e-credit-legal", source: "credit", target: "legal" },
+      { id: "e-legalaudit-risk", source: "legalAudit", target: "risk" },
       { id: "e-risk-ops", source: "risk", target: "operations" },
     ];
 
     if (hasSelfCorrection) {
       base.push(
         { id: "e-legal-selfcorrection", source: "legal", target: "selfCorrection" },
-        { id: "e-selfcorrection-risk", source: "selfCorrection", target: "risk" }
+        { id: "e-selfcorrection-legalaudit", source: "selfCorrection", target: "legalAudit" }
       );
     } else {
-      base.push({ id: "e-legal-risk", source: "legal", target: "risk" });
+      base.push({ id: "e-legal-legalaudit", source: "legal", target: "legalAudit" });
     }
 
     return base.map(edge => ({
