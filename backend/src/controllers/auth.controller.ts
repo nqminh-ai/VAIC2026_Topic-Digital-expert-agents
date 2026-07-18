@@ -75,3 +75,30 @@ export const createDemoSession = async (_req: Request, res: Response) => {
 
   return res.status(200).json({ accessToken, role, tenantId, expiresIn: ACCESS_TOKEN_TTL_SECONDS });
 };
+
+/**
+ * Creates a short-lived, approver-scoped session for the public hackathon demo's policy
+ * console. Same gating as createDemoSession — no password, disabled in production — but
+ * grants CREDIT_APPROVER so the demo can exercise tenant policy read/write without a real login.
+ */
+export const createDemoApproverSession = async (_req: Request, res: Response) => {
+  if (!config.publicDemoSession) {
+    return res.status(404).json({ error: "Demo session is not available" });
+  }
+
+  const username = "demo.approver";
+  const role = "CREDIT_APPROVER" as const;
+  const tenantId = "bank-default";
+  const accessToken = signAccessToken({ sub: username, role, tenantId });
+
+  await recordAuditEvent(
+    AUTH_RUN_ID,
+    username,
+    "agent_call",
+    { role, mode: "public-demo" },
+    "allowed",
+    "Khởi tạo phiên truy cập cấu hình chính sách cho giao diện hackathon demo."
+  );
+
+  return res.status(200).json({ accessToken, role, tenantId, expiresIn: ACCESS_TOKEN_TTL_SECONDS });
+};

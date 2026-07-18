@@ -5,6 +5,7 @@ import { OrchestrationRequest, OrchestrationStreamEvent } from "../types/orchest
 import { AuthenticatedRequest } from "../middleware/auth.middleware";
 import { AGENT_CONTRACTS } from "../services/orchestration/agent-role-registry";
 import { OrchestrationInputError } from "../services/orchestration/input-router.service";
+import { toPublicOrchestrationError } from "../services/orchestration/orchestration-error.service";
 
 export const orchestratePrompt = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -22,7 +23,8 @@ export const orchestratePrompt = async (req: AuthenticatedRequest, res: Response
       return res.status(422).json({ error: error.message, code: error.code, questions: error.questions });
     }
     console.error("Orchestration error:", error);
-    return res.status(500).json({ error: "Internal server error during orchestration" });
+    const publicError = toPublicOrchestrationError(error);
+    return res.status(publicError.httpStatus).json({ error: publicError.message, code: publicError.code });
   }
 };
 
@@ -53,7 +55,8 @@ export const orchestratePromptStream = async (req: AuthenticatedRequest, res: Re
       writeEvent({ type: "error", message: error.message, code: error.code, questions: error.questions });
     } else {
       console.error("Orchestration stream error:", error);
-      writeEvent({ type: "error", message: "Internal server error during orchestration" });
+      const publicError = toPublicOrchestrationError(error);
+      writeEvent({ type: "error", message: publicError.message, code: publicError.code });
     }
   } finally {
     res.end();

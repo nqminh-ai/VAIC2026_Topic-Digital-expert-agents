@@ -163,17 +163,35 @@ export type OrchestrationStreamEvent =
   | { type: "validation"; runId: string; issues: Array<{ code: string; message: string; nodeId?: string; retryable: boolean }> }
   | { type: "approval"; runId: string; approval: { id: string; status: string; requiredRole: string; expiresAt: string } }
   | { type: "action"; runId: string; result: { stepId: string; status: string; attempts: number } }
-  | { type: "compensation"; runId: string; result: { stepId: string; status: string; error?: string } }
-  | { type: "terminal"; runId: string; status: "completed" | "rejected" | "failed" | "manual_intervention_required" }
-  | { type: "node_update"; node: AgentRole; trace: AgentTrace; riskTier?: RiskTier }
-  | { type: "final"; response: OrchestrationResponse }
-  | { type: "advisory_final"; response: AdvisoryResponse }
-  | { type: "error"; message: string; code?: string; questions?: string[] };
+    | { type: "compensation"; runId: string; result: { stepId: string; status: string; error?: string } }
+    | { type: "terminal"; runId: string; status: "completed" | "rejected" | "failed" | "manual_intervention_required" }
+    | { type: "node_update"; node: AgentRole; trace: AgentTrace; riskTier?: RiskTier }
+    | { type: "final"; response: OrchestrationResponse }
+    | { type: "advisory_final"; response: AdvisoryResponse }
+    | { type: "error"; message: string; code?: string; questions?: string[] };
 
-export type UserRole = "CREDIT_OFFICER" | "CREDIT_APPROVER";
+  export type UserRole = "CREDIT_OFFICER" | "CREDIT_APPROVER";
 
-export interface AuthUser {
-  sub: string;
-  role: UserRole;
-  tenantId: string;
-}
+  export interface AuthUser {
+    sub: string;
+    role: UserRole;
+    tenantId: string;
+  }
+
+  export interface CitationPolicy {
+    required: boolean;
+    rejectIfMissing: boolean;
+    minimumConfidence: number;
+    allowedSourceTypes: string[];
+  }
+
+  export interface TenantRuntimeConfig {
+    tenantId: string;
+    version: string;
+    thresholds: { minCreditScore: number; maxDti: number };
+    runtime: { maxRetriesPerAgent: number; maxSteps: number; maxTokens: number; timeoutSeconds: number };
+    allowedModels: string[];
+    citationPolicy: CitationPolicy;
+    effectiveFrom: string;
+    updatedBy: string;
+  }

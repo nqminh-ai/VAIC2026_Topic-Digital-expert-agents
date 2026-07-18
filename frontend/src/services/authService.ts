@@ -26,3 +26,19 @@ export const getDemoAccessToken = async (): Promise<string> => {
   };
   return session.accessToken;
 };
+
+let cachedDemoApproverSession: { session: LoginResponse; expiresAt: number } | null = null;
+
+/** Gets a short-lived approver session (role + tenantId included) for the policy console demo. */
+export const getDemoApproverSession = async (): Promise<LoginResponse> => {
+  if (cachedDemoApproverSession && cachedDemoApproverSession.expiresAt > Date.now() + 30_000) {
+    return cachedDemoApproverSession.session;
+  }
+
+  const session = await apiFetch<LoginResponse>("/api/auth/demo-session/approver", { method: "POST" });
+  cachedDemoApproverSession = {
+    session,
+    expiresAt: Date.now() + session.expiresIn * 1000,
+  };
+  return session;
+};

@@ -2,7 +2,6 @@ import { Activity, BadgeCheck, CircleDollarSign } from "lucide-react";
 import { Header } from "../layouts/Header";
 import { PromptComposer } from "../features/chat/PromptComposer";
 import { FinalAnswerPanel } from "../features/chat/FinalAnswerPanel";
-import { AgentTimeline } from "../features/agent-trace/AgentTimeline";
 import { useOrchestrationStore } from "../store/orchestrationStore";
 import styles from "./DashboardPage.module.css";
 
@@ -16,7 +15,7 @@ export const DashboardPage = () => {
       <Header
         eyebrow="AI credit workspace"
         title="Thẩm định hồ sơ, từ yêu cầu đến quyết định."
-        subtitle="Chọn một tình huống mẫu hoặc mô tả hồ sơ để theo dõi các agent phân tích theo thời gian thực."
+        subtitle="Chọn một tình huống mẫu hoặc mô tả hồ sơ để nhận kết quả thẩm định."
         action={<span className={styles.systemStatus}><i /> Demo system online</span>}
       />
 
@@ -26,14 +25,9 @@ export const DashboardPage = () => {
         <div><CircleDollarSign size={17} /><span><small>Facility</small><strong>{response?.approvalTicketId ?? "Chưa tạo"}</strong></span></div>
       </div>
 
-      <div className={styles.layout}>
-        <div className={styles.mainColumn}>
-          <PromptComposer />
-          <FinalAnswerPanel />
-        </div>
-        <div className={styles.sideColumn}>
-          <AgentTimeline />
-        </div>
+      <div className={styles.mainColumn}>
+        <PromptComposer />
+        <FinalAnswerPanel />
       </div>
     </>
   );
