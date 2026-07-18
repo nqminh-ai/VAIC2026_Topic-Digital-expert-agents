@@ -1,11 +1,15 @@
-import { BookOpenCheck, CheckCircle2, ChevronDown, CircleDashed, Clock3, ExternalLink, Landmark, Loader2, MinusCircle, ShieldCheck, TrendingUp, TicketCheck, TriangleAlert, Workflow } from "lucide-react";
+import { BookOpenCheck, Check, CheckCircle2, ChevronDown, CircleDashed, Clock3, ExternalLink, Landmark, Loader2, MinusCircle, Save, ShieldCheck, TrendingUp, TicketCheck, TriangleAlert, Workflow } from "lucide-react";
+import { useState } from "react";
 import { Card } from "../../components/Card";
 import { Badge } from "../../components/Badge";
+import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { TypingIndicator } from "../../components/TypingIndicator";
 import { useOrchestrationStore } from "../../store/orchestrationStore";
 import type { PipelineStep } from "../../store/orchestrationStore";
 import type { AnswerTransparency } from "../../types/api";
+import { saveRun } from "../../services/orchestrationService";
+import { getDemoAccessToken } from "../../services/authService";
 import baseStyles from "./FinalAnswerPanel.module.css";
 import traceStyles from "./DecisionTrace.module.css";
 
@@ -83,6 +87,9 @@ const EvidenceClaims = ({ transparency }: { transparency: AnswerTransparency }) 
 };
 
 export const FinalAnswerPanel = () => {
+  const [savingRunId, setSavingRunId] = useState<string>();
+  const [savedRunId, setSavedRunId] = useState<string>();
+  const [saveError, setSaveError] = useState<string>();
   const phase = useOrchestrationStore(s => s.phase);
   const response = useOrchestrationStore(s => s.response);
   const advisoryMode = useOrchestrationStore(s => s.advisoryMode);
@@ -130,6 +137,24 @@ export const FinalAnswerPanel = () => {
   }
 
   if (!response) return null;
+
+  const creditStep = steps.find(s => s.key === "credit");
+  const creditOutput = creditStep?.trace?.toolCalls?.find(c => c.toolName === "evaluateCreditRules")?.output as any;
+
+  const handleSave = async () => {
+    if (savingRunId || savedRunId === response.runId) return;
+    setSavingRunId(response.runId);
+    setSaveError(undefined);
+    try {
+      const token = await getDemoAccessToken();
+      await saveRun(response.runId, token);
+      setSavedRunId(response.runId);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Không thể lưu hồ sơ.");
+    } finally {
+      setSavingRunId(undefined);
+    }
+  };
 
   return (
     <Card title="Kết luận thẩm định" action={<Badge tone="brand">Run {response.runId.replace("run-", "#")}</Badge>}>
@@ -197,6 +222,70 @@ export const FinalAnswerPanel = () => {
         </div>
       )}
 
+      {creditOutput && (
+        <div style={{ marginTop: "17px" }}>
+          <div className={styles.comparisonHeader}>Bảng đối chiếu thông số tín dụng</div>
+          <table className={styles.comparisonTable}>
+            <thead>
+              <tr>
+                <th>Chỉ số</th>
+                <th>Yêu cầu gốc</th>
+                <th>Đề xuất / Tái cơ cấu</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className={styles.metricName}>Thu nhập hợp lệ (Hải quan/Hồ sơ)</td>
+                <td className={styles.metricOriginal}>{creditOutput.validMonthlyIncome ? `${(creditOutput.validMonthlyIncome).toLocaleString("vi-VN")} ₫/tháng` : "—"}</td>
+                <td className={styles.metricProposed}>{creditOutput.validMonthlyIncome ? `${(creditOutput.validMonthlyIncome).toLocaleString("vi-VN")} ₫/tháng` : "—"}</td>
+              </tr>
+              <tr>
+                <td className={styles.metricName}>Nghĩa vụ trả nợ hiện tại (EMI)</td>
+                <td className={styles.metricOriginal}>{creditOutput.currentMonthlyDebt ? `${(creditOutput.currentMonthlyDebt).toLocaleString("vi-VN")} ₫/tháng` : "—"}</td>
+                <td className={styles.metricProposed}>
+                  {creditOutput.restructureScenario
+                    ? `${(creditOutput.originalScenario.emiEstimate + creditOutput.currentMonthlyDebt - creditOutput.restructureScenario.emiEstimate).toLocaleString("vi-VN")} ₫/tháng (Đã giảm cơ cấu)`
+                    : `${(creditOutput.currentMonthlyDebt).toLocaleString("vi-VN")} ₫/tháng`}
+                </td>
+              </tr>
+              <tr>
+                <td className={styles.metricName}>Số tiền vay & Thời hạn</td>
+                <td className={styles.metricOriginal}>
+                  {`${(creditOutput.originalScenario.loanAmount).toLocaleString("vi-VN")} ₫ / ${creditOutput.originalScenario.tenureYears} năm`}
+                </td>
+                <td className={styles.metricProposed}>
+                  {creditOutput.restructureScenario
+                    ? `${(creditOutput.restructureScenario.loanAmount).toLocaleString("vi-VN")} ₫ / ${creditOutput.restructureScenario.tenureYears} năm`
+                    : `${(creditOutput.originalScenario.loanAmount).toLocaleString("vi-VN")} ₫ / ${creditOutput.originalScenario.tenureYears} năm`}
+                </td>
+              </tr>
+              <tr>
+                <td className={styles.metricName}>Tỷ lệ nợ trên thu nhập (DTI Stress)</td>
+                <td className={styles.metricOriginal}>
+                  {`${(creditOutput.originalScenario.dtiStress * 100).toFixed(1)}%`}
+                </td>
+                <td className={styles.metricProposed}>
+                  {creditOutput.restructureScenario
+                    ? `${(creditOutput.restructureScenario.dtiStress * 100).toFixed(1)}%`
+                    : `${(creditOutput.originalScenario.dtiStress * 100).toFixed(1)}%`}
+                </td>
+              </tr>
+              <tr>
+                <td className={styles.metricName}>Tỷ lệ khoản vay trên tài sản (LTV)</td>
+                <td className={styles.metricOriginal}>
+                  {`${(creditOutput.originalScenario.ltv * 100).toFixed(1)}%`}
+                </td>
+                <td className={styles.metricProposed}>
+                  {creditOutput.restructureScenario
+                    ? `${(creditOutput.restructureScenario.ltv * 100).toFixed(1)}%`
+                    : `${(creditOutput.originalScenario.ltv * 100).toFixed(1)}%`}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {response.approvalTicketId && (
         <div className={styles.ticket}>
           <TicketCheck size={15} />
@@ -222,6 +311,14 @@ export const FinalAnswerPanel = () => {
           </ul>
         </div>
       )}
+
+      <div className={styles.saveBar}>
+        <div><Save size={16} /><span><strong>Lưu hồ sơ thẩm định</strong><small>Lưu kết luận, dữ liệu hồ sơ, trace đã mask và các phiên bản policy liên quan.</small></span></div>
+        <Button type="button" onClick={() => void handleSave()} isLoading={savingRunId === response.runId} disabled={savedRunId === response.runId}>
+          {savedRunId === response.runId ? <><Check size={15} />Đã lưu</> : <><Save size={15} />Lưu hồ sơ</>}
+        </Button>
+      </div>
+      {saveError && <div className={styles.saveError} role="alert">{saveError}</div>}
     </Card>
   );
 };

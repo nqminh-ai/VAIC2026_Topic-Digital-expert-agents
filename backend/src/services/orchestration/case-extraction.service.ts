@@ -239,6 +239,17 @@ const validateExtractedCase = (value: unknown): Omit<RetailCase, "caseId" | "cus
     throw new Error("Extracted case has invalid insurancePreference.");
   }
 
+  const refinanceAutoLoan = raw.refinanceAutoLoan as Record<string, unknown> | undefined;
+  if (requestedLoan.type === "refinance" && (
+    !refinanceAutoLoan ||
+    typeof refinanceAutoLoan.remainingPrincipal !== "number" ||
+    typeof refinanceAutoLoan.monthlyPayment !== "number" ||
+    refinanceAutoLoan.remainingPrincipal <= 0 ||
+    refinanceAutoLoan.monthlyPayment <= 0
+  )) {
+    throw new Error("Extracted refinance case has invalid existing loan data.");
+  }
+
   return {
     demographic: {
       name: demographic.name as string,
@@ -262,6 +273,10 @@ const validateExtractedCase = (value: unknown): Omit<RetailCase, "caseId" | "cus
       projectCode: isNonEmptyString(property.projectCode) ? (property.projectCode as string) : undefined,
       evidence: property.evidence as string,
     },
+    ...(refinanceAutoLoan ? { refinanceAutoLoan: {
+      remainingPrincipal: refinanceAutoLoan.remainingPrincipal as number,
+      monthlyPayment: refinanceAutoLoan.monthlyPayment as number,
+    } } : {}),
     consent: {
       credit_check: consent.credit_check as boolean,
       tax_income_check: consent.tax_income_check as boolean,
@@ -293,18 +308,38 @@ const EXTRACTION_UNAVAILABLE_RESULT: CaseExtractionResult = {
  */
 export const extractCaseFromPrompt = async (prompt: string): Promise<CaseExtractionResult> => {
   try {
+    // Structured requests from the production appraisal form are deterministic: validate
+    // them directly instead of asking an LLM to re-extract amounts and enum values.
+    if (prompt.trim().startsWith("{")) {
+      const structured = JSON.parse(prompt) as Record<string, unknown>;
+      if (structured.demographic && structured.requestedLoan) {
+        return { ok: true, retailCase: validateExtractedCase(structured) };
+      }
+    }
+
     const client = getFptMarketplaceClient();
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: prompt },
     ];
 
-    const response = await client.chat.completions.create({
-      model: config.fptExtractionModel,
-      messages,
-      tools: TOOLS,
-      tool_choice: "required",
-    });
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model: config.fptExtractionModel,
+        messages,
+        tools: TOOLS,
+        tool_choice: "required",
+      });
+    } catch (primaryError) {
+      console.warn(`Extraction model ${config.fptExtractionModel} failed, retrying with fallback model ${config.fptLegalModel}:`, primaryError);
+      response = await client.chat.completions.create({
+        model: config.fptLegalModel,
+        messages,
+        tools: TOOLS,
+        tool_choice: "required",
+      });
+    }
 
     const toolCall = response.choices[0].message.tool_calls?.[0];
     if (!toolCall || toolCall.type !== "function") {
@@ -333,7 +368,7 @@ export const extractCaseFromPrompt = async (prompt: string): Promise<CaseExtract
 
     return EXTRACTION_UNAVAILABLE_RESULT;
   } catch (error) {
-    console.error("Case extraction failed, falling back to NEEDS_MORE_INFO:", error);
+    console.error("Case extraction failed on fallback model as well, falling back to NEEDS_MORE_INFO:", error);
     return EXTRACTION_UNAVAILABLE_RESULT;
   }
 };

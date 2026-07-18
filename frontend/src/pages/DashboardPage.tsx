@@ -15,7 +15,7 @@ export const DashboardPage = () => {
       <Header
         eyebrow="AI credit workspace"
         title="Thẩm định hồ sơ, từ yêu cầu đến quyết định."
-        subtitle="Chọn một tình huống mẫu hoặc mô tả hồ sơ để nhận kết quả thẩm định."
+        subtitle="Mô tả hồ sơ tín dụng bằng ngôn ngữ tự nhiên để nhận kết quả thẩm định rủi ro và tuân thủ."
         action={<span className={styles.systemStatus}><i /> Demo system online</span>}
       />
 

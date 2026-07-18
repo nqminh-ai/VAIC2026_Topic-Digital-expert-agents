@@ -43,7 +43,7 @@ const TEST_CASES: TestCase[] = [
   },
   {
     name: "Case 4: Thiếu thông tin — hệ thống phải hỏi lại thay vì suy diễn",
-    prompt: "Thẩm định giúp tôi hồ sơ vay mua nhà của anh Tuấn.",
+    prompt: "Thẩm định giúp tôi hồ sơ vay mua nhà của anh Phước Đạt.",
     expectedPattern: "chưa đủ thông tin",
     expectThrow: true
   }

@@ -64,6 +64,7 @@ export interface LoanDossier {
   customerId: string;
   customerEmail: string;
   caseId: string | null;
+  runId?: string | null;
   loanType: LoanType;
   checklistVersion: string;
   status: DossierStatus;

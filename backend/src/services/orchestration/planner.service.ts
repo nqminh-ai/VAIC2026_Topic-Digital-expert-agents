@@ -7,7 +7,7 @@ import { recordAuditEvent, getAuditEventsByRun } from "../governance/audit-log.s
 import { screenSecurityInput } from "../governance/input-security.service";
 import { saveOrchestrationRun } from "./trace.service";
 import { orchestrationGraph, assembleTraces, OrchestrationState } from "./orchestration-graph";
-import { routeOrExtractInput, OrchestrationInputError } from "./input-router.service";
+import { routeOrExtractInput, OrchestrationInputError, InputRoutingOrExtractionResult } from "./input-router.service";
 import { classifyIntent } from "./intent-classifier.service";
 import { runAdvisoryAgent } from "../agents/advisory.agent";
 import { buildAnswerTransparency } from "../governance/citation-governance.service";
@@ -285,15 +285,22 @@ export const executeOrchestration = async (
   if (security.status === "rejected") return runSecurityBlockedFlow(runId, security.sanitizedInput, requestedBy, security.signals[0], tenantId);
   const securedPrompt = security.sanitizedInput;
 
+  const binding = await resolveRuntimeBinding(tenantId);
+  let routed: InputRoutingOrExtractionResult;
+
   if (!requestedCaseId) {
-    const { intent } = await classifyIntent(securedPrompt);
-    if (intent === "ADVISORY_QA" || intent === "OUT_OF_DOMAIN") {
-      return runAdvisoryFlow(runId, securedPrompt, requestedBy, intent);
+    const [intentResult, routedResult] = await Promise.all([
+      classifyIntent(securedPrompt),
+      routeOrExtractInput(securedPrompt, requestedCaseId, tenantId)
+    ]);
+    if (intentResult.intent === "ADVISORY_QA" || intentResult.intent === "OUT_OF_DOMAIN") {
+      return runAdvisoryFlow(runId, securedPrompt, requestedBy, intentResult.intent);
     }
+    routed = routedResult;
+  } else {
+    routed = await routeOrExtractInput(securedPrompt, requestedCaseId, tenantId);
   }
 
-  const binding = await resolveRuntimeBinding(tenantId);
-  const routed = await routeOrExtractInput(securedPrompt, requestedCaseId, tenantId);
   if (!routed.ok) throw new OrchestrationInputError(routed.code, routed.message, routed.questions);
   const { caseId } = routed;
   const retailCase = routed.extractedCase ?? await loadRetailCase(caseId, tenantId);
@@ -366,17 +373,24 @@ export const streamOrchestration = async (
   }
   const securedPrompt = security.sanitizedInput;
 
+  const binding = await resolveRuntimeBinding(tenantId);
+  let routed: InputRoutingOrExtractionResult;
+
   if (!requestedCaseId) {
-    const { intent } = await classifyIntent(securedPrompt);
-    if (intent === "ADVISORY_QA" || intent === "OUT_OF_DOMAIN") {
-      const response = await runAdvisoryFlow(runId, securedPrompt, requestedBy, intent);
+    const [intentResult, routedResult] = await Promise.all([
+      classifyIntent(securedPrompt),
+      routeOrExtractInput(securedPrompt, requestedCaseId, tenantId)
+    ]);
+    if (intentResult.intent === "ADVISORY_QA" || intentResult.intent === "OUT_OF_DOMAIN") {
+      const response = await runAdvisoryFlow(runId, securedPrompt, requestedBy, intentResult.intent);
       onEvent({ type: "advisory_final", response });
       return;
     }
+    routed = routedResult;
+  } else {
+    routed = await routeOrExtractInput(securedPrompt, requestedCaseId, tenantId);
   }
 
-  const binding = await resolveRuntimeBinding(tenantId);
-  const routed = await routeOrExtractInput(securedPrompt, requestedCaseId, tenantId);
   if (!routed.ok) throw new OrchestrationInputError(routed.code, routed.message, routed.questions);
   const { caseId } = routed;
   const retailCase = routed.extractedCase ?? await loadRetailCase(caseId, tenantId);

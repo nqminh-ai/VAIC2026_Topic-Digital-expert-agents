@@ -41,3 +41,11 @@
 .sourceCatalog > summary { display: flex; align-items: center; gap: 5px; color: var(--color-text-muted); font-size: 9.5px; font-weight: 650; cursor: pointer; list-style: none; }
 .sourceCatalog > summary svg { transition: transform .2s; }
 @media (max-width: 620px) { .traceSummary { padding: 12px; } .traceBody { padding: 0 12px 12px; } .traceStepHeader { align-items: flex-start; flex-direction: column; gap: 2px; } }
+.saveBar { margin-top: 17px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid rgba(23,110,89,.14); border-radius: 13px; background: linear-gradient(135deg,var(--color-brand-soft),#fbfdfb); }
+.saveBar > div { min-width: 0; display: flex; align-items: center; gap: 9px; color: var(--color-brand); }
+.saveBar span { display: flex; flex-direction: column; gap: 2px; }
+.saveBar strong { color: var(--color-text); font-size: 10.5px; }
+.saveBar small { color: var(--color-text-faint); font-size: 8.5px; line-height: 1.4; }
+.saveBar button { flex-shrink: 0; }
+.saveError { margin-top: 7px; padding: 8px 10px; border-radius: 8px; color: var(--color-danger); background: var(--color-danger-soft); font-size: 9px; font-weight: 650; }
+@media (max-width: 620px) { .saveBar { align-items: stretch; flex-direction: column; } .saveBar button { width: 100%; } }

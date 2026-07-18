@@ -76,7 +76,7 @@ export const seedDatabases = async () => {
       END $$;
     `);
 
-    await pgQuery(`ALTER TABLE orchestration_runs ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) NOT NULL DEFAULT 'bank-default', ADD COLUMN IF NOT EXISTS workflow_id VARCHAR(100), ADD COLUMN IF NOT EXISTS workflow_version VARCHAR(30), ADD COLUMN IF NOT EXISTS config_version VARCHAR(30);`);
+    await pgQuery(`ALTER TABLE orchestration_runs ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) NOT NULL DEFAULT 'bank-default', ADD COLUMN IF NOT EXISTS workflow_id VARCHAR(100), ADD COLUMN IF NOT EXISTS workflow_version VARCHAR(30), ADD COLUMN IF NOT EXISTS config_version VARCHAR(30), ADD COLUMN IF NOT EXISTS saved_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS saved_by VARCHAR(100);`);
     await pgQuery(`CREATE INDEX IF NOT EXISTS idx_runs_tenant_status ON orchestration_runs (tenant_id,status,created_at DESC);`);
     await pgQuery(`CREATE TABLE IF NOT EXISTS workflow_versions (tenant_id VARCHAR(100) NOT NULL, workflow_id VARCHAR(100) NOT NULL, version VARCHAR(30) NOT NULL, status VARCHAR(20) NOT NULL, definition JSONB NOT NULL, created_by VARCHAR(100) NOT NULL, created_at TIMESTAMPTZ NOT NULL, published_by VARCHAR(100), published_at TIMESTAMPTZ, PRIMARY KEY (tenant_id,workflow_id,version));`);
     await pgQuery(`CREATE OR REPLACE FUNCTION prevent_published_workflow_mutation() RETURNS trigger AS $$ BEGIN IF OLD.status='published' THEN RAISE EXCEPTION 'published workflow versions are immutable'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql;`);
@@ -203,6 +203,8 @@ export const seedDatabases = async () => {
     // (adding PENDING_CIC — the "chờ chuyên viên bổ sung CIC" state) — drop/recreate is idempotent.
     await pgQuery(`ALTER TABLE loan_dossiers DROP CONSTRAINT IF EXISTS loan_dossiers_status_check;`);
     await pgQuery(`ALTER TABLE loan_dossiers ADD CONSTRAINT loan_dossiers_status_check CHECK (status IN ('COLLECTING','INCOMPLETE','COMPLETE','QUEUED_FOR_SCORING','SCORED','PENDING_REVIEW','APPROVED','REJECTED','NEEDS_MORE_INFO','PENDING_CIC'));`);
+    await pgQuery(`ALTER TABLE loan_dossiers ADD COLUMN IF NOT EXISTS run_id VARCHAR(50);`);
+    await pgQuery(`CREATE UNIQUE INDEX IF NOT EXISTS uq_loan_dossiers_run ON loan_dossiers (run_id) WHERE run_id IS NOT NULL;`);
     await pgQuery(`CREATE INDEX IF NOT EXISTS idx_dossiers_tenant_status ON loan_dossiers (tenant_id,status,created_at DESC);`);
 
     await pgQuery(`

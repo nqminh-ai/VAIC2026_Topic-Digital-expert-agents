@@ -312,8 +312,8 @@ const fraudNode = async (state: OrchestrationState): Promise<Partial<Orchestrati
 
   const thresholds = state.policyThresholds;
   const trace = await runFraudInvestigationAgent(state.runId, state.caseId, state.tenantId, {
-    incomeDebtRatioCeiling: thresholds?.fraud.incomeDebtRatioCeiling,
-    collateralValueToLoanCeiling: thresholds?.fraud.collateralValueToLoanCeiling,
+    incomeDebtRatioCeiling: thresholds?.fraud?.incomeDebtRatioCeiling,
+    collateralValueToLoanCeiling: thresholds?.fraud?.collateralValueToLoanCeiling,
     minimumRepaymentAgeMargin: thresholds?.maximumRepaymentAgeMargin,
   });
   return { fraudTrace: trace, modelCallsCount: 0 };
@@ -355,7 +355,7 @@ const autoPolicyNode = async (state: OrchestrationState): Promise<Partial<Orches
   const hasProductConflict = state.productTrace?.findings?.some(finding =>
     finding.ruleIds?.includes(productCatalog.ruleIds.insuranceTying) && finding.evidence?.insuranceTyingApplied
   ) ?? false;
-  const maximumLtvPercent = state.policyThresholds?.maxLtvByPropertyType[retailCase.property.type] ?? decisionPolicy.autoApproval.maximumLtvPercent;
+  const maximumLtvPercent = state.policyThresholds?.maxLtvByPropertyType?.[retailCase.property.type] ?? decisionPolicy.autoApproval.maximumLtvPercent;
   const policy = evaluateAutoApprovalPolicy(retailCase, credit, hasProductConflict, state.maximumDtiPercent, maximumLtvPercent);
   if (!policy.eligible) {
     return { riskTier: "COMPLEX", finalDecision: "HUMAN_ESCALATION", approvalMode: "HYBRID_APPROVAL", requiredFixes: policy.reasonCodes };

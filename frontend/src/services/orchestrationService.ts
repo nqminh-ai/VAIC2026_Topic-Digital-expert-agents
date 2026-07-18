@@ -46,3 +46,8 @@ export const streamOrchestration = async (
 
 export const getRunTraces = (runId: string, token: string): Promise<OrchestrationResponse> =>
   apiFetch<OrchestrationResponse>(`/api/orchestrate/${runId}/traces`, { token });
+
+export interface SavedRunResult { saved: true; runId: string; dossier: { dossierId: string; status: string; caseId: string | null } }
+
+export const saveRun = (runId: string, token: string): Promise<SavedRunResult> =>
+  apiFetch<SavedRunResult>(`/api/runs/${runId}/save`, { method: "POST", token });

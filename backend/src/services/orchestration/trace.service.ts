@@ -45,6 +45,7 @@ export const saveOrchestrationRun = async (
          workflow_id = EXCLUDED.workflow_id,
          workflow_version = EXCLUDED.workflow_version,
          config_version = EXCLUDED.config_version
+       WHERE orchestration_runs.tenant_id = EXCLUDED.tenant_id
        RETURNING response_payload`,
       [
         runId,

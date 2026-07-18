@@ -70,12 +70,23 @@ export const runPlanningPhase = async (runId: string, caseId: string, riskTier: 
 
     const llmClient = getFptMarketplaceClient();
     for (let iteration = 0; iteration < MAX_PLANNING_ITERATIONS; iteration++) {
-      const response = await llmClient.chat.completions.create({
-        model: config.fptPlannerModel,
-        messages,
-        tools: openAiTools,
-        tool_choice: "auto",
-      });
+      let response;
+      try {
+        response = await llmClient.chat.completions.create({
+          model: config.fptPlannerModel,
+          messages,
+          tools: openAiTools,
+          tool_choice: "auto",
+        });
+      } catch (primaryError) {
+        console.warn(`Planner model ${config.fptPlannerModel} failed, retrying with fallback model ${config.fptLegalModel}:`, primaryError);
+        response = await llmClient.chat.completions.create({
+          model: config.fptLegalModel,
+          messages,
+          tools: openAiTools,
+          tool_choice: "auto",
+        });
+      }
 
       const message = response.choices[0].message;
       messages.push(message);

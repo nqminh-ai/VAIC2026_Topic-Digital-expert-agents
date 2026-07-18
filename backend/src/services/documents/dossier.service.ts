@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { pgQuery } from "../../config/pg";
+import { pgPool, pgQuery } from "../../config/pg";
 import { getPublishedChecklist } from "./document-checklist.service";
 import { DossierCicReport, DossierDocument, DossierStatus, LoanDossier, LoanType } from "../../types/document-intake.types";
 
@@ -9,6 +9,7 @@ const toDossier = (row: any): LoanDossier => ({
   customerId: row.customer_id,
   customerEmail: row.customer_email,
   caseId: row.case_id,
+  runId: row.run_id ?? null,
   loanType: row.loan_type,
   checklistVersion: row.checklist_version,
   status: row.status,
@@ -41,6 +42,62 @@ export const createDossier = async (tenantId: string, customerId: string, custom
     [dossierId, tenantId, customerId, customerEmail, loanType, checklist.version, actor, now]
   );
   return { dossierId, tenantId, customerId, customerEmail, caseId: null, loanType, checklistVersion: checklist.version, status: "COLLECTING", createdBy: actor, createdAt: now, updatedAt: now };
+};
+
+/**
+ * Atomically promotes a completed orchestration run into the human-review dossier queue.
+ * The large appraisal payload remains normalized in orchestration_runs and retail_cases;
+ * run_id/case_id are durable foreign identities, so no divergent JSON copy is created.
+ */
+export const saveRunAsDossier = async (tenantId: string, runId: string, actor: string): Promise<LoanDossier> => {
+  const client = await pgPool.connect();
+  try {
+    await client.query("BEGIN");
+    const source = await client.query(
+      `SELECT o.case_id,r.customer_id,r.payload
+       FROM orchestration_runs o
+       JOIN retail_cases r ON r.case_id=o.case_id AND r.tenant_id=o.tenant_id
+       WHERE o.run_id=$1 AND o.tenant_id=$2 AND o.response_payload IS NOT NULL
+       FOR UPDATE OF o`,
+      [runId, tenantId]
+    );
+    if (!source.rows[0]) throw new Error("RUN_OR_CASE_NOT_FOUND");
+
+    const row = source.rows[0] as { case_id: string; customer_id: string; payload: { demographic?: { email?: string }; requestedLoan?: { type?: string } } };
+    const customerEmail = row.payload.demographic?.email;
+    if (!customerEmail) throw new Error("CASE_CUSTOMER_EMAIL_REQUIRED");
+    // Current appraisal products (mortgage and refinance) are both secured mortgage dossiers.
+    const loanType: LoanType = "mortgage";
+    const checklist = await client.query(
+      `SELECT version FROM document_checklist_versions
+       WHERE tenant_id=$1 AND loan_type=$2 AND status='published'
+       ORDER BY published_at DESC LIMIT 1`,
+      [tenantId, loanType]
+    );
+    if (!checklist.rows[0]) throw new Error("CHECKLIST_NOT_PUBLISHED");
+
+    const dossierId = `dossier-${randomUUID()}`;
+    const now = new Date().toISOString();
+    const inserted = await client.query(
+      `INSERT INTO loan_dossiers (dossier_id,tenant_id,customer_id,customer_email,case_id,run_id,loan_type,checklist_version,status,created_by,created_at,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'PENDING_REVIEW',$9,$10,$10)
+       ON CONFLICT (run_id) WHERE run_id IS NOT NULL DO UPDATE SET run_id=EXCLUDED.run_id
+       RETURNING *`,
+      [dossierId, tenantId, row.customer_id, customerEmail, row.case_id, runId, loanType, checklist.rows[0].version, actor, now]
+    );
+    await client.query(
+      `UPDATE orchestration_runs SET saved_at=COALESCE(saved_at,NOW()),saved_by=COALESCE(saved_by,$3)
+       WHERE run_id=$1 AND tenant_id=$2`,
+      [runId, tenantId, actor]
+    );
+    await client.query("COMMIT");
+    return toDossier(inserted.rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const getDossier = async (tenantId: string, dossierId: string): Promise<LoanDossier | null> => {
