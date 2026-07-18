@@ -44,6 +44,13 @@ export const assertDemoUsersConfigured = (): void => {
   getDemoUsers();
 };
 
+/**
+ * Only 2 demo accounts exist in this repo (see getDemoUsers above) — real workload-based routing
+ * across a full officer directory is out of scope until a real IdP/user table replaces this.
+ */
+export const listUsernamesByRole = (role: UserRole): string[] =>
+  getDemoUsers().filter(user => user.role === role).map(user => user.username);
+
 export const verifyCredentials = (username: string, password: string): { username: string; role: UserRole } | null => {
   const user = getDemoUsers().find((u) => u.username === username);
   if (!user) {

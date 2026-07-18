@@ -1,0 +1,156 @@
+{
+  "catalogId": "loan-document-checklist",
+  "version": "1.0.0",
+  "loanTypes": ["unsecured", "mortgage"],
+  "minOverallConfidenceDefault": 0.8,
+  "documentTypes": [
+    {
+      "documentType": "national_id",
+      "displayName": "CCCD/Hộ chiếu còn hiệu lực (2 mặt)",
+      "formCode": null,
+      "templateFileRef": null,
+      "formMarkers": ["CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"],
+      "requiredFields": [
+        {"key": "fullName", "label": "Họ và tên"},
+        {"key": "idNumber", "label": "Số CCCD/Hộ chiếu"},
+        {"key": "dateOfBirth", "label": "Ngày sinh"},
+        {"key": "issueDate", "label": "Ngày cấp"},
+        {"key": "issuePlace", "label": "Nơi cấp"},
+        {"key": "permanentAddress", "label": "Nơi đăng ký thường trú"}
+      ],
+      "appliesToLoanTypes": ["unsecured", "mortgage"],
+      "requiredForLoanTypes": ["unsecured", "mortgage"]
+    },
+    {
+      "documentType": "loan_application_unsecured",
+      "displayName": "Đơn đề nghị vay vốn tín chấp kiêm hợp đồng tín dụng",
+      "formCode": "01/TC-KHCN",
+      "templateFileRef": "mau_don/Mau-01-Don-vay-tin-chap.docx",
+      "formMarkers": ["MẪU SỐ: 01/TC-KHCN", "ĐƠN ĐỀ NGHỊ VAY VỐN TÍN CHẤP"],
+      "requiredFields": [
+        {"key": "fullName", "label": "Họ và tên người vay vốn"},
+        {"key": "dateOfBirth", "label": "Ngày sinh"},
+        {"key": "idNumber", "label": "Số CCCD/Hộ chiếu"},
+        {"key": "permanentAddress", "label": "Nơi đăng ký thường trú"},
+        {"key": "phone", "label": "Số điện thoại"},
+        {"key": "maritalStatus", "label": "Tình trạng hôn nhân"},
+        {"key": "employer", "label": "Đơn vị công tác"},
+        {"key": "position", "label": "Chức vụ"},
+        {"key": "monthlyIncome", "label": "Thu nhập trung bình/tháng"},
+        {"key": "requestedAmount", "label": "Số tiền đề nghị vay"},
+        {"key": "tenureMonths", "label": "Thời hạn vay"},
+        {"key": "purpose", "label": "Mục đích sử dụng vốn"}
+      ],
+      "appliesToLoanTypes": ["unsecured"],
+      "requiredForLoanTypes": ["unsecured"]
+    },
+    {
+      "documentType": "loan_application_mortgage",
+      "displayName": "Đơn đề nghị vay vốn thế chấp kiêm phương án trả nợ",
+      "formCode": "02/TC-KHCN",
+      "templateFileRef": "mau_don/Mau-02-Don-vay-the-chap.docx",
+      "formMarkers": ["MẪU SỐ: 02/TC-KHCN", "ĐƠN ĐỀ NGHỊ VAY VỐN THẾ CHẤP"],
+      "requiredFields": [
+        {"key": "fullName", "label": "Họ và tên người vay vốn"},
+        {"key": "dateOfBirth", "label": "Ngày sinh"},
+        {"key": "idNumber", "label": "Số CCCD/Hộ chiếu"},
+        {"key": "permanentAddress", "label": "Nơi đăng ký thường trú"},
+        {"key": "phone", "label": "Số điện thoại"},
+        {"key": "maritalStatus", "label": "Tình trạng hôn nhân"},
+        {"key": "employer", "label": "Đơn vị công tác"},
+        {"key": "position", "label": "Chức vụ"},
+        {"key": "monthlyIncome", "label": "Thu nhập trung bình/tháng"},
+        {"key": "requestedAmount", "label": "Số tiền đề nghị vay"},
+        {"key": "tenureMonths", "label": "Thời hạn vay"},
+        {"key": "collateralDescription", "label": "Mô tả tài sản đảm bảo"}
+      ],
+      "appliesToLoanTypes": ["mortgage"],
+      "requiredForLoanTypes": ["mortgage"]
+    },
+    {
+      "documentType": "income_confirmation",
+      "displayName": "Giấy xác nhận thu nhập",
+      "formCode": "03/TC-KHCN",
+      "templateFileRef": "mau_don/Mau-03-Giay-xac-nhan-thu-nhap.docx",
+      "formMarkers": ["MẪU SỐ: 03/TC-KHCN", "GIẤY XÁC NHẬN THU NHẬP"],
+      "requiredFields": [
+        {"key": "employerName", "label": "Tên đơn vị công tác"},
+        {"key": "employerTaxCode", "label": "Mã số thuế đơn vị"},
+        {"key": "employeeName", "label": "Họ và tên người lao động"},
+        {"key": "employeeIdNumber", "label": "Số CCCD/Hộ chiếu người lao động"},
+        {"key": "position", "label": "Chức vụ/vị trí công việc"},
+        {"key": "startDate", "label": "Ngày bắt đầu làm việc"},
+        {"key": "contractType", "label": "Loại hợp đồng lao động"},
+        {"key": "averageMonthlyIncome", "label": "Thu nhập bình quân/tháng"}
+      ],
+      "appliesToLoanTypes": ["unsecured", "mortgage"],
+      "requiredForLoanTypes": ["unsecured", "mortgage"]
+    },
+    {
+      "documentType": "labor_contract",
+      "displayName": "Hợp đồng lao động / quyết định bổ nhiệm còn hiệu lực",
+      "formCode": null,
+      "templateFileRef": null,
+      "formMarkers": ["HỢP ĐỒNG LAO ĐỘNG"],
+      "requiredFields": [
+        {"key": "fullName", "label": "Họ và tên"},
+        {"key": "employer", "label": "Đơn vị công tác"},
+        {"key": "position", "label": "Chức vụ"},
+        {"key": "contractType", "label": "Loại hợp đồng"},
+        {"key": "monthlySalary", "label": "Lương tháng"},
+        {"key": "startDate", "label": "Ngày bắt đầu"}
+      ],
+      "appliesToLoanTypes": ["unsecured", "mortgage"],
+      "requiredForLoanTypes": ["unsecured", "mortgage"]
+    },
+    {
+      "documentType": "social_insurance_book",
+      "displayName": "Sổ BHXH / xác nhận quá trình đóng BHXH",
+      "formCode": null,
+      "templateFileRef": null,
+      "formMarkers": ["BẢO HIỂM XÃ HỘI"],
+      "requiredFields": [
+        {"key": "fullName", "label": "Họ và tên"},
+        {"key": "socialInsuranceNumber", "label": "Mã số BHXH"},
+        {"key": "employerName", "label": "Đơn vị tham gia"},
+        {"key": "participationMonths", "label": "Số tháng đã tham gia"}
+      ],
+      "appliesToLoanTypes": ["unsecured", "mortgage"],
+      "requiredForLoanTypes": [],
+      "note": "Tùy chọn theo nghiệp vụ thực tế — giúp tăng điểm tín dụng, không bắt buộc mọi khoản vay."
+    },
+    {
+      "documentType": "cic_report",
+      "displayName": "Kết quả tra cứu CIC",
+      "formCode": null,
+      "templateFileRef": null,
+      "formMarkers": ["THÔNG TIN TÍN DỤNG"],
+      "requiredFields": [
+        {"key": "creditScore", "label": "Điểm tín dụng"},
+        {"key": "totalOutstandingDebt", "label": "Tổng dư nợ"},
+        {"key": "debtGroup", "label": "Nhóm nợ"},
+        {"key": "reportDate", "label": "Ngày tra cứu"}
+      ],
+      "appliesToLoanTypes": ["unsecured", "mortgage"],
+      "requiredForLoanTypes": ["unsecured", "mortgage"],
+      "note": "Trong hệ thống production, dữ liệu này nên do ngân hàng tự tra cứu qua API CIC nội bộ thay vì khách hàng upload. Module này mô phỏng theo đúng yêu cầu OCR gốc của task (checklist bao gồm CIC dưới dạng tài liệu khách hàng nộp)."
+    },
+    {
+      "documentType": "collateral_certificate",
+      "displayName": "Giấy chứng nhận quyền sử dụng đất / quyền sở hữu nhà ở (sổ đỏ/sổ hồng)",
+      "formCode": null,
+      "templateFileRef": null,
+      "formMarkers": ["GIẤY CHỨNG NHẬN QUYỀN SỬ DỤNG ĐẤT"],
+      "requiredFields": [
+        {"key": "ownerName", "label": "Tên chủ sở hữu"},
+        {"key": "certificateNumber", "label": "Số giấy chứng nhận"},
+        {"key": "propertyAddress", "label": "Địa chỉ tài sản"},
+        {"key": "propertyArea", "label": "Diện tích"},
+        {"key": "issueDate", "label": "Ngày cấp"}
+      ],
+      "appliesToLoanTypes": ["mortgage"],
+      "requiredForLoanTypes": ["mortgage"],
+      "note": "Bắt buộc khi tài sản đảm bảo là bất động sản. Các loại TSĐB khác (ô tô, sổ tiết kiệm) ngoài phạm vi checklist mặc định này — bổ sung document_type riêng khi cần, không sửa code."
+    }
+  ]
+}

@@ -17,4 +17,12 @@ export const config = {
   fptLegalModel: process.env.LEGAL_LLM_MODEL || process.env.FPT_LEGAL_MODEL || "GLM-5.1",
   fptPlannerModel: process.env.PLANNER_LLM_MODEL || process.env.FPT_PLANNER_MODEL || "gpt-oss-20b",
   fptExtractionModel: process.env.EXTRACTION_LLM_MODEL || process.env.FPT_EXTRACTION_MODEL || "Qwen3-Coder-480B-A35B-Instruct",
+  googleApplicationCredentialsJson: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON || "",
+  googleCloudProjectId: process.env.GOOGLE_CLOUD_PROJECT_ID || "",
+  googleDocumentAiLocation: process.env.GOOGLE_DOCUMENT_AI_LOCATION || "us",
+  googleDocumentAiProcessorId: process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID || "",
+  gmailSmtpUser: process.env.GMAIL_SMTP_USER || "",
+  gmailSmtpAppPassword: process.env.GMAIL_SMTP_APP_PASSWORD || "",
+  gmailSenderName: process.env.GMAIL_SENDER_NAME || "SHB VAIC Credit Ops",
+  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || "loan-documents",
 };

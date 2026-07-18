@@ -2,6 +2,7 @@ import { pgQuery } from "../../config/pg";
 import { getNeo4jSession } from "../../config/neo4j";
 import { setupOrchestrationCheckpointer } from "../orchestration/orchestration-graph";
 import { seedLegalKnowledgeGraph } from "./knowledge-graph-seed.service";
+import { documentChecklistCatalog, checklistItemsForLoanType } from "../../config/document-checklist";
 
 export const seedDatabases = async () => {
   console.log("=== STARTING DATABASE SEED PROCESS ===");
@@ -140,6 +141,155 @@ export const seedDatabases = async () => {
 
     // retail_cases starts empty — cases are only ever written by case-extraction.service.ts
     // (LLM extraction from a real credit officer's request), never seeded from fixtures.
+
+    // --- Document intake module (checklist / OCR / dossier review queue) ---
+    console.log("Initializing document intake module tables...");
+
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS document_checklist_versions (
+        tenant_id VARCHAR(100) NOT NULL,
+        loan_type VARCHAR(20) NOT NULL,
+        version VARCHAR(30) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        items JSONB NOT NULL,
+        created_by VARCHAR(100) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        published_by VARCHAR(100),
+        published_at TIMESTAMPTZ,
+        PRIMARY KEY (tenant_id, loan_type, version)
+      );
+    `);
+    // Publishing a checklist version locks it (see constraint: never silently change a published checklist).
+    // Changing requirements always means authoring and publishing a new version instead.
+    await pgQuery(`CREATE OR REPLACE FUNCTION prevent_published_checklist_mutation() RETURNS trigger AS $$ BEGIN IF OLD.status='published' THEN RAISE EXCEPTION 'published document checklist versions are immutable'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql;`);
+    await pgQuery(`DROP TRIGGER IF EXISTS trg_checklist_version_immutable ON document_checklist_versions;`);
+    await pgQuery(`CREATE TRIGGER trg_checklist_version_immutable BEFORE UPDATE OR DELETE ON document_checklist_versions FOR EACH ROW EXECUTE FUNCTION prevent_published_checklist_mutation();`);
+
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS loan_dossiers (
+        dossier_id VARCHAR(50) PRIMARY KEY,
+        tenant_id VARCHAR(100) NOT NULL,
+        customer_id VARCHAR(50) NOT NULL,
+        customer_email TEXT NOT NULL,
+        case_id VARCHAR(50),
+        loan_type VARCHAR(20) NOT NULL,
+        checklist_version VARCHAR(30) NOT NULL,
+        status VARCHAR(30) NOT NULL CHECK (status IN ('COLLECTING','INCOMPLETE','COMPLETE','QUEUED_FOR_SCORING','SCORED','PENDING_REVIEW','APPROVED','REJECTED','NEEDS_MORE_INFO')),
+        created_by VARCHAR(100) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_dossiers_tenant_status ON loan_dossiers (tenant_id,status,created_at DESC);`);
+
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS dossier_documents (
+        document_id VARCHAR(50) PRIMARY KEY,
+        dossier_id VARCHAR(50) NOT NULL REFERENCES loan_dossiers(dossier_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        document_type VARCHAR(100) NOT NULL,
+        storage_path TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        uploaded_by VARCHAR(100) NOT NULL,
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        status VARCHAR(30) NOT NULL CHECK (status IN ('UPLOADED','FORM_REJECTED','FORM_ACCEPTED','OCR_PENDING','OCR_NEEDS_REVIEW','OCR_COMPLETE','OCR_FAILED'))
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_dossier_documents_dossier ON dossier_documents (dossier_id,document_type,uploaded_at DESC);`);
+
+    // Separate log table for form-mismatch failures (task requires this luồng lỗi stays distinct from OCR issues below).
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS document_form_validation_log (
+        id BIGSERIAL PRIMARY KEY,
+        document_id VARCHAR(50) NOT NULL REFERENCES dossier_documents(document_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        passed BOOLEAN NOT NULL,
+        reason TEXT,
+        checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_form_validation_log_document ON document_form_validation_log (document_id);`);
+
+    // Separate table for OCR extraction outcomes (missing fields / low confidence) — never merged with form-validation failures above.
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS document_ocr_results (
+        id UUID PRIMARY KEY,
+        document_id VARCHAR(50) NOT NULL REFERENCES dossier_documents(document_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        extracted_fields JSONB NOT NULL,
+        field_confidence JSONB NOT NULL,
+        overall_confidence NUMERIC NOT NULL,
+        missing_required_fields JSONB NOT NULL,
+        engine VARCHAR(50) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_ocr_results_document ON document_ocr_results (document_id,created_at DESC);`);
+
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS dossier_missing_document_notices (
+        id UUID PRIMARY KEY,
+        dossier_id VARCHAR(50) NOT NULL REFERENCES loan_dossiers(dossier_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        missing_document_types JSONB NOT NULL,
+        recipient_email TEXT NOT NULL,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        status VARCHAR(20) NOT NULL CHECK (status IN ('sent','failed')),
+        error TEXT
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_missing_notices_dossier ON dossier_missing_document_notices (dossier_id,sent_at DESC);`);
+
+    // DB-backed queue (this repo has no external broker) — dossiers become eligible for
+    // preliminary scoring the moment checklist-completeness marks them COMPLETE.
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS scoring_queue (
+        id UUID PRIMARY KEY,
+        dossier_id VARCHAR(50) NOT NULL REFERENCES loan_dossiers(dossier_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        status VARCHAR(20) NOT NULL CHECK (status IN ('queued','scored','failed')),
+        enqueued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        scored_at TIMESTAMPTZ,
+        score_result JSONB
+      );
+    `);
+    await pgQuery(`CREATE UNIQUE INDEX IF NOT EXISTS uq_scoring_queue_dossier ON scoring_queue (dossier_id);`);
+
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS dossier_review_assignments (
+        dossier_id VARCHAR(50) PRIMARY KEY REFERENCES loan_dossiers(dossier_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        assigned_officer VARCHAR(100) NOT NULL,
+        assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_review_assignments_officer ON dossier_review_assignments (tenant_id,assigned_officer);`);
+
+    await pgQuery(`
+      CREATE TABLE IF NOT EXISTS dossier_review_decisions (
+        id UUID PRIMARY KEY,
+        dossier_id VARCHAR(50) NOT NULL REFERENCES loan_dossiers(dossier_id),
+        tenant_id VARCHAR(100) NOT NULL,
+        reviewer VARCHAR(100) NOT NULL,
+        decision VARCHAR(20) NOT NULL CHECK (decision IN ('approved','rejected','more_info')),
+        comment TEXT,
+        decided_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgQuery(`CREATE INDEX IF NOT EXISTS idx_review_decisions_dossier ON dossier_review_decisions (dossier_id,decided_at DESC);`);
+
+    // Seed the default checklist as an already-published v1.0.0 per loan type so the intake
+    // API has something to enforce from boot. Publishing a *new* version is the only way to
+    // change it afterward — this seed insert never runs again once the row exists (DO NOTHING).
+    for (const loanType of documentChecklistCatalog.loanTypes) {
+      const items = checklistItemsForLoanType(loanType);
+      await pgQuery(
+        `INSERT INTO document_checklist_versions (tenant_id,loan_type,version,status,items,created_by,created_at,published_by,published_at)
+         VALUES ('bank-default',$1,$2,'published',$3,'system',NOW(),'system',NOW()) ON CONFLICT (tenant_id,loan_type,version) DO NOTHING`,
+        [loanType, documentChecklistCatalog.version, JSON.stringify(items)]
+      );
+    }
+    console.log("Document intake module: checklist/dossier/OCR/review tables ready.");
 
     // 2. Neo4j Seeding
     console.log("Initializing Neo4j Graph Databases...");
